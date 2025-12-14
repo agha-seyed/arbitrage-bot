@@ -1,0 +1,26 @@
+# docker-compose.yml
+version: "3.9"
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: test-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  bot:
+    build: .
+    container_name: test-beast-2027
+    restart: always
+    env_file:
+      - .env
+    depends_on:
+      - redis
+    volumes:
+      - ./logs:/app/logs
+      - ./assets:/app/assets
+    healthcheck:
+      test: ["CMD", "python", "healthcheck.py"]
+      interval: 60s
+      timeout: 10s
+      retries: 3

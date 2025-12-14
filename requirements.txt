@@ -1,0 +1,5 @@
+aiohttp==3.9.5
+aiogram==3.13.1
+redis==5.0.8
+python-dotenv==1.0.1
+loguru==0.7.2

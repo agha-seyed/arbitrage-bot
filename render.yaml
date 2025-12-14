@@ -1,0 +1,22 @@
+# render.yaml — برای وقتی آماده دیپلوی روی ابر بودی
+services:
+  - type: redis
+    name: beast-redis-test
+    region: frankfurt
+    plan: free
+
+  - type: worker
+    name: arbitrage-beast-test
+    region: frankfurt
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: DRY_RUN
+        sync: false
+      - key: BANKROLL
+        sync: false
