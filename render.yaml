@@ -4,9 +4,11 @@ services:
     name: beast-redis-test
     region: frankfurt
     plan: free
+    ipAllowList: [] # اصلاح ۱: لیست خالی یعنی فقط دسترسی داخلی مجاز است
 
   - type: worker
     name: arbitrage-beast-test
+    env: python # اصلاح ۲: زبان پایتون مشخص شد
     region: frankfurt
     plan: free
     buildCommand: pip install -r requirements.txt
