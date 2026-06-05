@@ -26,6 +26,39 @@ def calculate_min_profit_threshold(hours_to_event: float) -> float:
     else:
         return 3.0
 
+BOOKMAKER_CLASSIFICATION = {
+    "sharp": ["pinnacle", "betfair_ex", "betfair_it", "betfair", "matchbook"],
+    "soft": ["snai", "eurobet", "sisal", "bet365", "bet365_it", "lottomatica", 
+             "goldbet", "planetwin365", "better", "admiralbet", "betflag"]
+}
+
+def classify_bookmaker(bookmaker: str) -> str:
+    b = bookmaker.lower().replace(" ", "")
+    for category, list_of_bookies in BOOKMAKER_CLASSIFICATION.items():
+        if b in list_of_bookies:
+            return category
+    return "soft"
+
+def evaluate_arbitrage_quality(bookies: list) -> dict:
+    legs_classification = [classify_bookmaker(b) for b in bookies]
+    
+    if all(c == 'soft' for c in legs_classification):
+        return {"quality": "HIGH", "risk": "LOW", "recommended": True}
+    elif any(c == 'sharp' for c in legs_classification) and any(c == 'soft' for c in legs_classification):
+        return {"quality": "MEDIUM", "risk": "PALPABLE_ERROR_POSSIBLE", "recommended": True}
+    else:
+        return {"quality": "LOW", "risk": "DATA_ERROR", "recommended": False}
+
+def calculate_urgency_score(hours_to_event: float, profit_pct: float) -> dict:
+    if hours_to_event < 0.5 and profit_pct > 3.0:
+        return {"urgency": "🚨 CLOSING FAST", "action": "ممکن است بسته شود"}
+    elif hours_to_event < 2 and profit_pct > 2.0:
+        return {"urgency": "⚡ URGENT", "action": "سریع عمل کنید"}
+    elif hours_to_event > 24 and profit_pct > 1.5:
+        return {"urgency": "💎 PREMIUM", "action": "فرصت عالی"}
+    else:
+        return {"urgency": "📊 NORMAL", "action": "معمولی"}
+
 # DRY_RUN برای تست بدون ثبت واقعی
 DRY_RUN = os.getenv("DRY_RUN", "true").lower() == "true"
 
@@ -144,6 +177,14 @@ async def build_signal(arb: dict, bankroll: float, source: str) -> dict | None:
         
         odds = [float(p["odd"]) for p in prongs]
         bookies = [p["bookmaker"] for p in prongs]
+        
+        quality_data = evaluate_arbitrage_quality(bookies)
+        if not quality_data["recommended"]:
+            logger.info(f"سیگنال بی‌کیفیت (احتمال خطای دیتا) رد شد: {event}")
+            return None
+            
+        urgency_data = calculate_urgency_score(hours_to_event, profit_pct)
+        
         ip_total = sum(1.0 / o for o in odds)
         stakes = calculate_stakes(bankroll, odds, profit_pct, bookies)
         if not stakes:
@@ -180,7 +221,10 @@ async def build_signal(arb: dict, bankroll: float, source: str) -> dict | None:
             "guaranteed_profit": profit_eur,
             "legs": legs,
             "id": event_id,
-            "source": source
+            "source": source,
+            "quality": quality_data["quality"],
+            "urgency": urgency_data["urgency"],
+            "action_advice": urgency_data["action"]
         }
     except Exception as e:
         logger.error(f"خطا در ساخت سیگنال: {e}")

@@ -42,11 +42,19 @@ DIRECT_LINKS = {
 
 async def send_text_fallback(signal: dict):
     prefix = "[DRY RUN] " if DRY_RUN else ""
+    
+    quality = signal.get('quality', 'UNKNOWN')
+    q_icon = "🟢" if quality == "HIGH" else "🟡" if quality == "MEDIUM" else "🔴"
+    urgency = signal.get('urgency', '📊 NORMAL')
+    action = signal.get('action_advice', '')
+
     lines = [
         f"{prefix}SUREBET GARANTITO 2027",
         f"Match: {signal['event']}",
+        f"Quality: {q_icon} {quality} | {urgency}",
         f"Profitto: {signal['profit_pct']}% → €{signal['guaranteed_profit']:.1f}",
         f"Totale stake: €{signal['total_stake']}",
+        f"Action: {action}",
         "",
     ]
     for leg in signal["legs"]:
@@ -77,12 +85,19 @@ async def send_surebet_alert(signal: dict) -> bool:
     total_stake = signal["total_stake"]
     profit_eur = signal["guaranteed_profit"]
     legs = signal["legs"]
+    
+    quality = signal.get('quality', 'UNKNOWN')
+    q_icon = "🟢" if quality == "HIGH" else "🟡" if quality == "MEDIUM" else "🔴"
+    urgency = signal.get('urgency', '📊 NORMAL')
+    action = signal.get('action_advice', '')
 
     lines = [
         f"{prefix}SUREBET GARANTITO 2027",
         f"Match: <b>{event}</b>",
+        f"Quality: {q_icon} <b>{quality}</b> | {urgency}",
         f"Profitto: <b>{profit_pct}%</b> → <b>€{profit_eur:.1f}</b>",
         f"Totale stake: <b>€{total_stake}</b>",
+        f"<i>{action}</i>",
         "",
     ]
 
