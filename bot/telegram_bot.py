@@ -5,7 +5,7 @@ from pathlib import Path
 from aiogram import Bot
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.types import InputFile, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton
 from loguru import logger
 
 # Validate ENV
@@ -122,7 +122,7 @@ async def send_surebet_alert(signal: dict) -> bool:
         try:
             await bot.send_voice(
                 chat_id=CHAT_ID,
-                voice=InputFile(SIREN_PATH),
+                voice=FSInputFile(SIREN_PATH),
                 caption=caption,
                 protect_content=True,
                 reply_markup=keyboard,

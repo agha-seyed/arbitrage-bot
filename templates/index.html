@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GOD MODE - Arbitrage Dashboard</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #0f172a; color: #f8fafc; }
+        .glass {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+<body class="p-8 font-sans">
+    
+    <div class="max-w-6xl mx-auto">
+        <header class="flex justify-between items-center mb-10">
+            <div>
+                <h1 class="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-blue-500">
+                    Italian Arbitrage Beast
+                </h1>
+                <p class="text-slate-400 mt-2">Live Monitoring Dashboard v8.1 🚀</p>
+            </div>
+            
+            <div class="flex gap-4">
+                <div class="glass px-6 py-3 rounded-xl text-center">
+                    <p class="text-sm text-slate-400">Total Signals (Last 50)</p>
+                    <p class="text-2xl font-bold text-white">{{ total_found }}</p>
+                </div>
+                <div class="glass px-6 py-3 rounded-xl text-center">
+                    <p class="text-sm text-slate-400">Avg Profit</p>
+                    <p class="text-2xl font-bold text-green-400">{{ avg_profit }}%</p>
+                </div>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 gap-6">
+            {% if signals %}
+                {% for signal in signals %}
+                <div class="glass rounded-2xl p-6 transition transform hover:-translate-y-1 hover:shadow-2xl">
+                    <div class="flex justify-between items-start mb-4">
+                        <div>
+                            <span class="px-3 py-1 text-xs font-semibold rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                                {{ signal.market | default("H2H") }}
+                            </span>
+                            <h2 class="text-xl font-bold mt-3">{{ signal.event }}</h2>
+                            <p class="text-sm text-slate-400 mt-1">Found: {{ signal.timestamp | default("N/A") }}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-3xl font-bold text-green-400">{{ signal.profit_pct }}%</p>
+                            <p class="text-sm text-slate-400">Profit: €{{ signal.guaranteed_profit }}</p>
+                            <p class="text-xs text-slate-500 mt-1">Total Stake: €{{ signal.total_stake }}</p>
+                        </div>
+                    </div>
+
+                    <div class="mt-6">
+                        <h3 class="text-sm font-semibold text-slate-300 mb-3 border-b border-slate-700 pb-2">Legs Details & True Odds</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {% for leg in signal.legs %}
+                            <div class="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="font-bold text-white uppercase">{{ leg.bookie }}</span>
+                                    <span class="bg-slate-700 text-xs px-2 py-1 rounded">{{ leg.selection }}</span>
+                                </div>
+                                
+                                <div class="space-y-1 mt-3 text-sm">
+                                    <div class="flex justify-between">
+                                        <span class="text-slate-400">Odd:</span>
+                                        <span class="font-bold text-yellow-400">{{ leg.odd }}</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-slate-400">True Odd:</span>
+                                        <span class="font-bold text-blue-300">{{ leg.true_odd | default("-") }}</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-slate-400">Value:</span>
+                                        {% if leg.value_pct and leg.value_pct > 0 %}
+                                            <span class="font-bold text-green-400">+{{ leg.value_pct }}%</span>
+                                        {% else %}
+                                            <span class="font-bold text-slate-300">{{ leg.value_pct | default("-") }}%</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <div class="mt-4 pt-3 border-t border-slate-700 flex justify-between items-center">
+                                    <span class="text-slate-400 text-sm">Stake:</span>
+                                    <span class="font-bold text-white">€{{ leg.stake }}</span>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="glass rounded-2xl p-10 text-center">
+                    <p class="text-slate-400 text-lg">No surebets found yet. The bot is scanning...</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Auto refresh every 60 seconds -->
+    <script>
+        setTimeout(function(){
+            window.location.reload(1);
+        }, 60000);
+    </script>
+</body>
+</html>

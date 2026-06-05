@@ -12,7 +12,7 @@ from datetime import datetime
 from loguru import logger
 
 from core.surebet_client import SurebetClient
-from engine.arbitrage_engine import build_signal
+from engine.arbitrage_engine import build_signal, save_signal_to_redis
 from engine.blacklist import is_blacklisted_event
 from bot.telegram_bot import send_surebet_alert
 
@@ -80,8 +80,9 @@ async def main():
                         logger.info(f"رویداد بلاک‌لیست — رد شد: {event_name}")
                         continue
                     
-                    signal = build_signal(arb, BANKROLL, "surebet_test")
+                    signal = await build_signal(arb, BANKROLL, "surebet_test")
                     if signal:
+                        await save_signal_to_redis(signal)
                         success = await send_surebet_alert(signal)
                         if success:
                             logger.success(f"سیگنال تست ارسال شد: {event_name} — {signal['profit_pct']}%")

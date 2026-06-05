@@ -1,109 +1,128 @@
-# core/surebet_client.py — نسخه جدید با The-Odds-API رایگان 🚀
-# توضیح فارسی:
-# این فایل odds واقعی از بوکی‌ها می‌گیره (با API Key رایگان تو)
-# آربیتراژ رو خودش حساب می‌کنه (سود واقعی — بدون محدودیت ۱٪)
-# هر درخواست یک سیگنال ممکنه بده — ۵۰۰ درخواست رایگان در ماه
-# هیچ توکن تست یا اشتراکی لازم نیست!
-
+# core/surebet_client.py — GOD MODE v8.1
 import asyncio
 import aiohttp
 from loguru import logger
-from datetime import datetime
+import os
 
 class SurebetClient:
     def __init__(self):
-        # API Key رایگان تو از The-Odds-API
-        self.api_key = "f9a8245e9324a014d9469483b41f35e0"  # اینو با کلید خودت جایگزین کن اگر خواستی
-        
-        # endpoint برای odds فوتبال اروپا
+        self.api_key = os.getenv("THE_ODDS_API_KEY", "f9a8245e9324a014d9469483b41f35e0")
+        self.session = None
         self.endpoint = "https://api.the-odds-api.com/v4/sports/soccer_italy_serie_a/odds"
-        
         self.params = {
             "apiKey": self.api_key,
-            "regions": "eu",  # اروپا
-            "markets": "h2h",  # head to head (1X2)
+            "regions": "eu",
+            "markets": "h2h,totals",  # پشتیبانی از Over/Under اضافه شد
             "oddsFormat": "decimal",
             "dateFormat": "iso"
         }
-        
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/131 Safari/537.36"
         }
 
     async def fetch(self):
         """دریافت odds و پیدا کردن آربیتراژ"""
-        async with aiohttp.ClientSession() as session:
-            for attempt in range(5):
-                try:
-                    async with session.get(self.endpoint, params=self.params, headers=self.headers, timeout=25) as resp:
-                        if resp.status == 200:
-                            data = await resp.json()
-                            logger.info(f"داده از The-Odds-API گرفته شد — {len(data)} بازی")
-                            surebets = self.find_arbitrage(data)
-                            if surebets:
-                                logger.info(f"{len(surebets)} آربیتراژ پیدا شد")
-                                return {"surebets": surebets}
-                            return {"surebets": []}
-                        elif resp.status == 429:
-                            logger.warning("Rate limit — ۶۰ ثانیه صبر")
-                            await asyncio.sleep(60)
-                        else:
-                            logger.warning(f"خطای API — وضعیت {resp.status}")
-                            await asyncio.sleep(20)
-                except Exception as e:
-                    logger.error(f"خطای شبکه: {e}")
-                    await asyncio.sleep(20)
-            return {"surebets": []}
+        if self.session is None:
+            self.session = aiohttp.ClientSession()
+            
+        for attempt in range(5):
+            try:
+                async with self.session.get(self.endpoint, params=self.params, headers=self.headers, timeout=25) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        logger.info(f"داده از The-Odds-API گرفته شد — {len(data)} بازی")
+                        surebets = self.find_arbitrage(data)
+                        if surebets:
+                            logger.info(f"{len(surebets)} آربیتراژ پیدا شد")
+                            return {"surebets": surebets}
+                        return {"surebets": []}
+                    elif resp.status == 429:
+                        logger.warning("Rate limit — ۶۰ ثانیه صبر")
+                        await asyncio.sleep(60)
+                    else:
+                        logger.warning(f"خطای API — وضعیت {resp.status}")
+                        await asyncio.sleep(20)
+            except Exception as e:
+                logger.error(f"خطای شبکه: {e}")
+                await asyncio.sleep(20)
+        return {"surebets": []}
 
     def find_arbitrage(self, games):
-        """پیدا کردن آربیتراژ از odds"""
+        """پیدا کردن آربیتراژ از odds در هر دو مارکت H2H و Totals"""
         surebets = []
+        ALLOWED_BOOKIES = {"snai", "sisal", "eurobet", "goldbet", "better", "planetwin365", "betflag", "bet365", "bet365_it", "pinnacle", "betfair", "betfair_it"}
+        
         for game in games:
             home_team = game["home_team"]
             away_team = game["away_team"]
             bookmakers = game["bookmakers"]
             
-            best_home = 0
-            best_away = 0
-            best_draw = 0
-            best_home_book = ""
-            best_away_book = ""
-            best_draw_book = ""
+            best_h2h = {"home": {"price": 0, "bookie": ""}, "away": {"price": 0, "bookie": ""}, "draw": {"price": 0, "bookie": ""}}
+            best_totals = {}  # {point: {"Over": {...}, "Under": {...}}}
             
             for book in bookmakers:
+                bookie_name_clean = book["title"].lower().replace(" ", "")
+                if bookie_name_clean not in ALLOWED_BOOKIES:
+                    continue
+                
                 for market in book["markets"]:
                     if market["key"] == "h2h":
-                        outcomes = market["outcomes"]
-                        for outcome in outcomes:
-                            if outcome["name"] == home_team:
-                                if outcome["price"] > best_home:
-                                    best_home = outcome["price"]
-                                    best_home_book = book["title"]
-                            elif outcome["name"] == away_team:
-                                if outcome["price"] > best_away:
-                                    best_away = outcome["price"]
-                                    best_away_book = book["title"]
-                            elif outcome["name"] == "Draw":
-                                if outcome["price"] > best_draw:
-                                    best_draw = outcome["price"]
-                                    best_draw_book = book["title"]
+                        for outcome in market["outcomes"]:
+                            if outcome["name"] == home_team and outcome["price"] > best_h2h["home"]["price"]:
+                                best_h2h["home"] = {"price": outcome["price"], "bookie": book["title"]}
+                            elif outcome["name"] == away_team and outcome["price"] > best_h2h["away"]["price"]:
+                                best_h2h["away"] = {"price": outcome["price"], "bookie": book["title"]}
+                            elif outcome["name"] == "Draw" and outcome["price"] > best_h2h["draw"]["price"]:
+                                best_h2h["draw"] = {"price": outcome["price"], "bookie": book["title"]}
+                                
+                    elif market["key"] == "totals":
+                        for outcome in market["outcomes"]:
+                            point = outcome.get("point")
+                            if not point: continue
+                            if point not in best_totals:
+                                best_totals[point] = {"Over": {"price": 0, "bookie": ""}, "Under": {"price": 0, "bookie": ""}}
+                            
+                            name = outcome["name"]
+                            if name in ["Over", "Under"] and outcome["price"] > best_totals[point][name]["price"]:
+                                best_totals[point][name] = {"price": outcome["price"], "bookie": book["title"]}
             
-            # حساب کردن آربیتراژ
-            if best_home > 1 and best_away > 1:
-                ip = 1/best_home + 1/best_away
-                if best_draw > 1:
-                    ip += 1/best_draw
+            # بررسی مارکت H2H
+            h_price, a_price, d_price = best_h2h["home"]["price"], best_h2h["away"]["price"], best_h2h["draw"]["price"]
+            if h_price > 1 and a_price > 1:
+                ip = 1/h_price + 1/a_price
+                if d_price > 1:
+                    ip += 1/d_price
                 
                 if ip < 1:
                     profit = (1 - ip) * 100
                     surebets.append({
                         "event": {"name": f"{home_team} vs {away_team}"},
+                        "market": "H2H",
                         "profit": profit,
                         "prongs": [
-                            {"bookmaker": best_home_book, "odd": best_home, "betType": "1"},
-                            {"bookmaker": best_away_book, "odd": best_away, "betType": "2"},
-                            {"bookmaker": best_draw_book, "odd": best_draw, "betType": "X"} if best_draw > 1 else None
+                            {"bookmaker": best_h2h["home"]["bookie"], "odd": h_price, "betType": "1"},
+                            {"bookmaker": best_h2h["draw"]["bookie"], "odd": d_price, "betType": "X"} if d_price > 1 else None,
+                            {"bookmaker": best_h2h["away"]["bookie"], "odd": a_price, "betType": "2"}
                         ],
-                        "id": hash(f"{home_team} vs {away_team}")
+                        "id": hash(f"h2h_{home_team} vs {away_team}")
                     })
-        return [s for s in surebets if s["prongs"].count(None) == 0]  # فقط 3 لگ کامل
+            
+            # بررسی مارکت Totals (Over/Under)
+            for point, data in best_totals.items():
+                o_price, u_price = data["Over"]["price"], data["Under"]["price"]
+                if o_price > 1 and u_price > 1:
+                    ip = 1/o_price + 1/u_price
+                    if ip < 1:
+                        profit = (1 - ip) * 100
+                        surebets.append({
+                            "event": {"name": f"{home_team} vs {away_team} (O/U {point})"},
+                            "market": "Totals",
+                            "profit": profit,
+                            "prongs": [
+                                {"bookmaker": data["Over"]["bookie"], "odd": o_price, "betType": f"Over {point}"},
+                                {"bookmaker": data["Under"]["bookie"], "odd": u_price, "betType": f"Under {point}"}
+                            ],
+                            "id": hash(f"ou_{point}_{home_team} vs {away_team}")
+                        })
+                        
+        return [s for s in surebets if s["prongs"].count(None) == 0]
