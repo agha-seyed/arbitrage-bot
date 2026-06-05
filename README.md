@@ -1,70 +1,77 @@
-# 🚀 Italian Arbitrage Beast 2027 (GOD MODE)
+# 🤖 Arbitrage Bot (God Mode v9.0 Enterprise)
 
-ربات هوشمند و پیشرفته آربیتراژ شرط‌بندی فوتبال (و ورزش‌های دیگر) با تمرکز روی سایت‌های ایتالیایی (Snai, Sisal, Eurobet, ...).
-این ربات به طور خودکار بازی‌ها را چک می‌کند، مبالغ را بر اساس Kelly Criterion و True Odds محاسبه می‌کند و در صورت سودده بودن، از طریق تلگرام با آلارم صوتی به شما اطلاع می‌دهد.
+[🇮🇷 فارسی (Persian)](#فارسی-persian) | [🇬🇧 English](#english)
 
-## ✨ ویژگی‌ها
-- 🔍 اسکن اتوماتیک چندین ورزش (فوتبال، تنیس، بسکتبال) در حالت Real Mode
-- 🧮 محاسبه احتمال واقعی (True Odds) و Value Betting
-- 🛡️ مدیریت میزان ریسک روزانه (Daily Exposure) برای هر سایت با Redis
-- 🚨 ارسال سیگنال سریع در تلگرام با فایل صوتی آلارم
-- 📊 داشبورد وب زنده (FastAPI) و گرافیکی برای مانیتورینگ سیستم
-- 🧠 جمع‌آوری خودکار داده‌های واقعی (Real Trades) برای آموزش هوش مصنوعی (ML)
-- 🐳 پشتیبانی کامل از Docker و Multi-Worker
+---
 
-## ⚙️ پیش‌نیازها
-- Docker و Docker Compose (یا نصب Python 3.11 و Redis به صورت لوکال)
-- ربات تلگرامی (ایجاد از طریق BotFather@)
-- کلید API رایگان از سایت [The-Odds-API](https://the-odds-api.com/)
+<a name="english"></a>
+## 🇬🇧 English
 
-## 🚀 راه‌اندازی با Docker (پیشنهادی)
+Welcome to the **Arbitrage Bot (God Mode v9.0 Enterprise)** repository! This is a state-of-the-art sports betting arbitrage bot built with Python. It is designed to automatically find, verify, and execute risk-free arbitrage opportunities across various bookmakers.
 
-۱. ریپازیتوری را کلون کنید:
-```bash
-git clone https://github.com/agha-seyed/arbitrage-bot.git
-cd arbitrage-bot
-```
+### ✨ Key Features
 
-۲. فایل `.env.example` را کپی کرده و نام آن را به `.env` تغییر دهید و اطلاعات خود را وارد کنید:
-```bash
-cp .env.example .env
-```
+- **Multi-Market Support:** Advanced arbitrage calculation for `H2H` (Match Winner), `Totals` (Over/Under), and `Spreads` (Asian Handicap).
+- **Stealth Auto-Betting:** Integrated with Playwright and stealth plugins. It features a `ProxyManager` for IP rotation to bypass bookmaker detection systems and Cloudflare.
+- **Smart Filtering Pipeline:**
+  - **Odds Verifier:** Double-checks odds in real-time before betting.
+  - **Steam Detector:** Uses Redis to track odds history and avoids "steaming" markets (sudden odds drops indicating a trap).
+  - **Profit Filter:** Dynamically adjusts the acceptable profit margin based on the time remaining to the event.
+  - **Bookmaker Classifier:** Prevents betting between two "Sharp" bookmakers to avoid bans.
+- **Protection Systems:** 
+  - **Exposure Control:** Limits daily wagered volume per bookmaker.
+  - **Account Health:** Simulates and calculates a health score (0-100) for your accounts based on win/loss ratios and volumes.
+- **Machine Learning & Database:** Fully integrated with an async SQL Database (PostgreSQL/SQLite) and a CLV (Closing Line Value) tracker. It logs all bets and user interactions for future Random Forest ML training.
+- **Wall-Street UI Dashboard:** A stunning Glassmorphism & Dark Mode web dashboard powered by FastAPI, WebSocket, and Chart.js for real-time monitoring.
+- **Interactive Telegram Bot:** Receive instant alerts and use inline buttons to mark bets as won/lost/voided, instantly updating the SQL database.
 
-۳. کانتینرها را با داکر بیلد و اجرا کنید:
-```bash
-docker-compose up -d --build
-```
+### 🚀 Getting Started
 
-۴. لاگ‌ها را برای اطمینان از عملکرد بررسی کنید:
-```bash
-docker-compose logs -f bot
-```
+1. **Clone the repository**
+2. **Install requirements:**
+   ```bash
+   pip install -r requirements.txt aiosqlite
+   ```
+3. **Configure Environment:** Copy `.env.example` to `.env` and fill in your API keys (The-Odds-API, Telegram token, etc.).
+4. **Run the Bot:**
+   ```bash
+   python main.py
+   ```
+5. **Access Dashboard:** Open your browser and go to `http://localhost:8080`
 
-۵. داشبورد وب در آدرس `http://localhost:8000` در دسترس خواهد بود.
+---
 
-## 💻 راه‌اندازی بدون Docker (لوکال)
+<a name="فارسی-persian"></a>
+## 🇮🇷 فارسی (Persian)
 
-۱. مطمئن شوید که سرور Redis در حال اجرا است (پورت 6379).
+به مخزن **ربات آربیتراژ (نسخه God Mode v9.0 Enterprise)** خوش آمدید! این یک ربات آربیتراژ ورزشی فوق‌پیشرفته است که با پایتون نوشته شده و به صورت خودکار فرصت‌های آربیتراژ (بدون ریسک) را بین سایت‌های شرط‌بندی پیدا کرده، تایید می‌کند و (در صورت نیاز) ثبت می‌کند.
 
-۲. پکیج‌های پایتون را نصب کنید:
-```bash
-pip install -r requirements.txt
-```
+### ✨ ویژگی‌های کلیدی
 
-۳. فایل `.env` را ایجاد و متغیرها را پر کنید.
+- **پشتیبانی از بازارهای پیچیده:** محاسبه پیشرفته آربیتراژ برای مارکت‌های `H2H` (برد/مساوی/باخت)، `Totals` (گل بالا/پایین) و `Spreads` (هندیکپ آسیایی).
+- **شرط‌بندی اتوماتیک مخفی (Stealth):** یکپارچه شده با Playwright به همراه پلاگین مخفی‌سازی. این سیستم دارای مدیریت چرخش پروکسی (`ProxyManager`) است تا سیستم‌های امنیتی و کلودفلر (Cloudflare) را دور بزند.
+- **خط لوله فیلترینگ هوشمند:**
+  - **تاییدکننده ضریب (Odds Verifier):** بررسی مجدد و لحظه‌ای ضرایب قبل از شرط‌بندی.
+  - **تشخیص تله‌های افت ضریب (Steam Detector):** استفاده از دیتابیس Redis برای ردیابی تاریخچه ضرایب و جلوگیری از ورود به ضرایبی که دچار افت شدید شده‌اند.
+  - **فیلتر پویای سود (Profit Filter):** تنظیم هوشمند درصد سود قابل قبول بر اساس زمان باقیمانده تا شروع مسابقه.
+  - **طبقه‌بندی سایت‌ها (Classifier):** جلوگیری از شرط‌بندی همزمان روی دو سایت Sharp (حرفه‌ای) برای جلوگیری از مسدود شدن اکانت.
+- **سیستم‌های حفاظتی:**
+  - **کنترل حجم (Exposure Control):** محدود کردن حجم پول در گردش روزانه روی هر بوکمیکر.
+  - **سلامت اکانت (Account Health):** محاسبه امتیاز سلامت (۰ تا ۱۰۰) برای اکانت‌های شما بر اساس حجم و تعداد برد/باخت برای جلوگیری از لیمیت شدن.
+- **یادگیری ماشین و دیتابیس:** یکپارچه‌سازی کامل با دیتابیس Async SQL (PostgreSQL/SQLite). دارای سیستم ردیابی CLV (ارزش ضریب هنگام شروع بازی) برای ذخیره تمام داده‌ها جهت آموزش هوش مصنوعی در آینده.
+- **داشبورد حرفه‌ای (Wall-Street UI):** یک پنل وب فوق‌العاده زیبا با طراحی Glassmorphism و تم تاریک. دارای اتصال WebSocket و Chart.js برای نمایش نوتیفیکیشن‌ها و آمار زنده.
+- **ربات تعاملی تلگرام:** ارسال فوری آلارم‌ها به همراه دکمه‌های شیشه‌ای برای ثبت نتیجه شرط (برد/باخت) و آپدیت مستقیم دیتابیس.
 
-۴. داشبورد را در یک ترمینال اجرا کنید:
-```bash
-uvicorn dashboard:app --host 0.0.0.0 --port 8000
-```
+### 🚀 راهنمای راه‌اندازی
 
-۵. ربات را در ترمینال دیگر اجرا کنید:
-```bash
-python main.py
-```
-
-## 🛣️ نقشه راه (Roadmap)
-- ذخیره شرط‌های بسته شده در دیتابیس با دکمه‌های تعاملی تلگرام
-- آموزش پیشرفته مدل یادگیری ماشین (XGBoost) با داده‌های جمع‌آوری شده در `data/real_trades.csv`
-- ثبت اتوماتیک شرط (Auto-Betting) روی سایت بوکی‌ها از طریق ربات Playwright
-- اضافه کردن تست‌های اتوماتیک (Pytest)
+۱. **دانلود کدها**
+۲. **نصب پیش‌نیازها:**
+   ```bash
+   pip install -r requirements.txt aiosqlite
+   ```
+۳. **تنظیمات:** فایل `.env.example` را به `.env` تغییر نام دهید و کلیدهای خود (مانند API Key و توکن تلگرام) را در آن وارد کنید.
+۴. **اجرای ربات:**
+   ```bash
+   python main.py
+   ```
+۵. **مشاهده داشبورد:** مرورگر خود را باز کرده و به آدرس `http://localhost:8080` بروید.
