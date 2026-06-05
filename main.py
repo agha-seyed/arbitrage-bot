@@ -1,194 +1,169 @@
-# main.py — Italian Arbitrage Beast 2027 — GOD MODE v8.0 🚀💰
-# توضیح فارسی: این فایل قلب ربات است. هر ۶۰ ثانیه داده از API تست Surebet می‌گیرد
-# فقط سیگنال‌های با سود زیر ۱٪ می‌دهد (محدودیت تست)
-# بعد از خرید توکن واقعی، سود بالای ۸٪ هم می‌گیری!
-
 import asyncio
-import os
-import signal
-import random
-import sys
-from datetime import datetime
-from loguru import logger
+import aiohttp
+import redis.asyncio as aioredis
+import structlog
+from config import settings
 
-from core.surebet_client import SurebetClient
-from engine.arbitrage_engine import build_signal, save_signal_to_redis, r, health_monitor
-from engine.blacklist import is_blacklisted_event
-from bot.telegram_bot import send_surebet_alert
-from ml_predictor import ArbitragePredictor
-from engine.clv_tracker import CLVTracker
+from core.odds_fetcher import OddsFetcher
+from core.arb_calculator import ArbCalculator
+from core.stake_calculator import StakeCalculator
+from core.vig_remover import VigRemover
 
-clv_tracker = CLVTracker(r)
+from filters.odds_verifier import OddsVerifier
+from filters.profit_filter import DynamicProfitFilter
+from filters.bookmaker_classifier import BookmakerClassifier
+from filters.steam_detector import SteamDetector
+from filters.pipeline import FilterPipeline
 
-# List of sports to scan (GOD MODE Phase 3 Multi-Sport)
-SPORTS = [
-    "soccer_italy_serie_a", 
-    "soccer_uefa_champs_league",
-    "basketball_euroleague",
-    "tennis_atp"
+from protection.account_health import AccountHealthMonitor
+from protection.exposure_control import ExposureController
+from protection.bankroll_manager import BankrollManager
+
+from tracking.clv_tracker import CLVTracker
+from tracking.ml_collector import MLCollector
+
+from output.telegram_notifier import TelegramNotifier
+from output.dashboard import Dashboard
+
+log = structlog.get_logger()
+
+# ورزش‌ها و مارکت‌هایی که اسکن می‌شوند
+SCAN_CONFIG = [
+    {"sport_key": "soccer_italy_serie_a",       "markets": ["h2h", "totals"]},
+    {"sport_key": "soccer_uefa_champs_league",   "markets": ["h2h", "totals"]},
+    {"sport_key": "basketball_euroleague",       "markets": ["h2h", "totals"]},
+    {"sport_key": "tennis_atp",                  "markets": ["h2h"]},
 ]
-REGIONS = "eu"
-MARKETS = "h2h,totals"  # تست بدون ثبت واقعی
-BANKROLL = float(os.getenv("BANKROLL", "100"))  # Micro-Bankroll برای امنیت
-FETCH_INTERVAL = 60  # دقیقاً ۶۰ ثانیه — محدودیت تست API
-WATCHDOG_TIMEOUT = 300  # ۵ دقیقه بدون سیگنال = ری‌استارت
 
-# Logging حرفه‌ای — لاگ‌ها در پوشه logs ذخیره می‌شن
-logger.remove()
-logger.add(sys.stderr, level="INFO")
-logger.add("logs/arbitrage_{time:YYYY-MM-DD}.log", rotation="500 MB", retention="30 days", level="INFO")
-logger.add("logs/errors_{time:YYYY-MM-DD}.log", level="ERROR", rotation="100 MB")
-
-last_success = datetime.utcnow()
-
-async def watchdog():
-    """اگر ۵ دقیقه سیگنال نیاد، ربات رو ری‌استارت می‌کنه"""
-    global last_success
-    while True:
-        await asyncio.sleep(60)
-        if (datetime.utcnow() - last_success).total_seconds() > WATCHDOG_TIMEOUT:
-            logger.critical("۵ دقیقه بدون سیگنال — ری‌استارت تمیز")
-            os.kill(os.getpid(), signal.SIGTERM)
-
-async def graceful_shutdown(signum, frame):
-    """وقتی ربات متوقف شد، همه چیز رو تمیز می‌بنده"""
-    logger.info(f"سیگنال {signal.Signals(signum).name} دریافت شد — خروج تمیز")
-    await asyncio.sleep(0.5)
-    sys.exit(0)
-
-def setup_signal_handlers():
-    loop = asyncio.get_event_loop()
-    for sig in (signal.SIGTERM, signal.SIGINT):
-        loop.add_signal_handler(sig, lambda s=sig: asyncio.create_task(graceful_shutdown(s, None)))
-
-async def verify_odds_before_alert(signal_data: dict, client: SurebetClient, sport: str) -> bool:
+async def scan_loop(pipeline: FilterPipeline, fetcher: OddsFetcher,
+                    calculator: ArbCalculator, notifier: TelegramNotifier,
+                    steam_detector: SteamDetector, clv_tracker: CLVTracker,
+                    ml_collector: MLCollector, stake_calc: StakeCalculator,
+                    vig_remover: VigRemover, exposure_controller: ExposureController):
     """
-    ضرایب را دقیقاً ۱ ثانیه قبل از ارسال، مجدداً از API دریافت می‌کند.
-    اگر تفاوت بیش از ۲٪ باشد، آربیتراژ را رد می‌کند.
+    حلقه اصلی اسکن — بی‌وقفه اجرا می‌شود.
+    هر SCAN_INTERVAL_SECONDS ثانیه یک دور کامل می‌زند.
     """
-    event_id = signal_data.get("id")
-    if not event_id:
-        return True
-        
-    await asyncio.sleep(1)
-    
-    fresh_data = await client.fetch_event_odds(sport, event_id, REGIONS, MARKETS)
-    if not fresh_data:
-        logger.warning(f"عدم دریافت داده تاییدیه برای {event_id} - رد کردن آربیتراژ برای امنیت")
-        return False
-        
-    event_data = fresh_data[0] if isinstance(fresh_data, list) and len(fresh_data) > 0 else fresh_data
-    if not event_data or "bookmakers" not in event_data:
-        return False
-        
-    for leg in signal_data["legs"]:
-        bookmaker = leg["bookie"]
-        selection = leg["selection"]
-        original_odd = float(leg["odd"])
-        
-        current_odd = None
-        for b in event_data["bookmakers"]:
-            if b["title"].lower().replace(" ", "") == bookmaker:
-                for market in b["markets"]:
-                    if market["key"] == "h2h":
-                        for outcome in market["outcomes"]:
-                            if (selection == "1" and outcome["name"] == event_data.get("home_team")) or \
-                               (selection == "2" and outcome["name"] == event_data.get("away_team")) or \
-                               (selection == "X" and outcome["name"] == "Draw"):
-                                current_odd = float(outcome["price"])
-                    elif market["key"] == "totals":
-                        for outcome in market["outcomes"]:
-                            if selection.startswith(outcome["name"]) and str(outcome.get("point")) in selection:
-                                current_odd = float(outcome["price"])
-                break
-        
-        if not current_odd:
-            logger.warning(f"ضریب {bookmaker} در تاییدیه یافت نشد (بسته شده) - رد کردن سیگنال")
-            return False
-            
-        deviation = abs(current_odd - original_odd) / original_odd
-        if deviation > 0.02:
-            logger.warning(f"تغییر ضریب در {bookmaker}: قدیم {original_odd} جدید {current_odd} (تغییر {deviation*100:.1f}%) - رد شد")
-            return False
-
-    logger.info("تاییدیه با موفقیت انجام شد: ضریب‌ها معتبر هستند.")
-    return True
-
-async def main():
-    global last_success
-    logger.info("Italian Arbitrage Beast 2027 — GOD MODE v8.0 فعال شد 🚀")
-    logger.info("ربات در حالت واقعی (Real Mode) قرار دارد. تمامی سیگنال‌ها پردازش می‌شوند.")
-    
-    if os.name != "nt":
-        setup_signal_handlers()
-    else:
-        signal.signal(signal.SIGTERM, lambda s, f: asyncio.create_task(graceful_shutdown(s, f)))
-        signal.signal(signal.SIGINT, lambda s, f: asyncio.create_task(graceful_shutdown(s, f)))
-    
-    asyncio.create_task(watchdog())
-    
-    client = SurebetClient()  # از توکن تست استفاده می‌کنه
-    
     while True:
         try:
-            for sport in SPORTS:
-                logger.info(f"شروع اسکن آربیتراژ برای لیگ: {sport}")
+            for config in SCAN_CONFIG:
+                odds_data = await fetcher.get_odds(
+                    sport_key=config['sport_key'],
+                    markets=",".join(config['markets'])
+                )
                 
-                # دریافت ضرایب
-                data = await asyncio.wait_for(client.fetch_odds(sport, REGIONS, MARKETS), timeout=30)
-                
-                if not data:
-                    logger.warning(f"دیتایی برای {sport} دریافت نشد.")
+                if odds_data is None:
+                    log.warning("no_data", sport=config['sport_key'])
                     continue
                 
-                if "surebets" in data:
-                    last_success = datetime.utcnow()
-                    count = len(data["surebets"])
-                    logger.info(f"{count} سیگنال واقعی پیدا شد — پردازش شروع شد")
-                    for arb in data["surebets"]:  # پردازش تمام سیگنال‌ها
-                        event_name = arb["event"]["name"]
-                        if is_blacklisted_event(event_name):
-                            logger.info(f"رویداد بلاک‌لیست — رد شد: {event_name}")
-                            continue
+                # ثبت همه ضرایب در SteamDetector (قبل از محاسبه)
+                for event in odds_data:
+                    for bm in event.get('bookmakers', []):
+                        for mkt in bm.get('markets', []):
+                            for out in mkt.get('outcomes', []):
+                                await steam_detector.record_odd(
+                                    event['id'], bm['key'], mkt['key'], out['price']
+                                )
+                
+                # پیدا کردن آربیتراژها
+                opportunities = calculator.find_all(odds_data)
+                
+                for opp in opportunities:
+                    # محاسبه Stakes
+                    opp = stake_calc.calculate(opp)
+                    if 'stakes_calculated' not in opp:
+                        # اگر به دلیل کم بودن سرمایه باطل شده بود
+                        continue
                         
-                        signal_data = await build_signal(arb, BANKROLL, "surebet")
-                        if signal_data:
-                            # Double Check Verification
-                            is_verified = await verify_odds_before_alert(signal_data, client, sport)
-                            if not is_verified:
-                                continue
-                                
-                            signal_data["sport"] = sport
-                            await save_signal_to_redis(signal_data)
-                            
-                            # ذخیره در فایل برای Machine Learning
-                            try:
-                                ArbitragePredictor.save_real_signal(signal_data)
-                            except Exception as e:
-                                logger.error(f"Error saving ML data: {e}")
-                                
-                            success = await send_surebet_alert(signal_data)
-                            if success:
-                                logger.success(f"سیگنال واقعی ارسال شد: {event_name} — {signal_data['profit_pct']}%")
-                                
-                                # فاز ۳: ثبت CLV و اضافه کردن تعداد شرط‌ها در Health Monitor
-                                for leg in signal_data["legs"]:
-                                    await health_monitor.increment_daily_bet_count(leg["bookie"])
-                                    await clv_tracker.record_bet_placement(
-                                        odd_taken=float(leg["odd"]),
-                                        event_id=signal_data["id"],
-                                        market=leg["selection"],
-                                        bookmaker=leg["bookie"]
-                                    )
-                                    
-                            await asyncio.sleep(random.uniform(2, 5))  # رفتار انسانی
-            
-            logger.info(f"پایان دور اسکن تمام لیگ‌ها. توقف برای {FETCH_INTERVAL} ثانیه...")
-            await asyncio.sleep(FETCH_INTERVAL)  # دقیقاً ۶۰ ثانیه صبر کن
-            
+                    # اکسپوژر کنترل (بعد از محاسبه stake باید چک شود)
+                    can_place = True
+                    for leg in opp['legs']:
+                        if not await exposure_controller.can_place(leg['bookmaker'], leg['stake']):
+                            can_place = False
+                            break
+                    if not can_place:
+                        continue
+                        
+                    # حذف حاشیه سود برای محاسبه ضریب واقعی
+                    opp = vig_remover.calculate_true_odds(opp)
+                    
+                    # اجرای pipeline فیلترها
+                    approved, result = await pipeline.run(opp)
+                    
+                    if not approved:
+                        ml_collector.record_rejected(opp, result['reason'])
+                        continue
+                        
+                    # اگر از فیلترها با موفقیت رد شد، حالا record_placement برای اکسپوژر فراخوانی شود
+                    for leg in result['legs']:
+                        await exposure_controller.record_placement(leg['bookmaker'], leg['stake'])
+                    
+                    # ثبت برای CLV
+                    clv_tracker.record_placement(result)
+                    
+                    # ذخیره برای ML
+                    ml_collector.record_approved(result)
+                    
+                    # ارسال به تلگرام
+                    await notifier.send_arbitrage_alert(result)
+                    
+                    log.info(
+                        "signal_sent",
+                        event=result.get('event_name'),
+                        profit=result['profit_pct'],
+                        quality=result['quality']['quality'],
+                        urgency=result['urgency']['label']
+                    )
+        
         except Exception as e:
-            logger.error(f"خطای غیرمهم (ادامه می‌دیم): {e}")
-            await asyncio.sleep(20)
+            log.error("scan_loop_error", error=str(e), exc_info=True)
+        
+        await asyncio.sleep(settings.SCAN_INTERVAL_SECONDS)
+
+
+async def main():
+    log.info("bot_starting", version="GOD_MODE_v9.0")
+    
+    redis_client = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+    
+    async with aiohttp.ClientSession() as session:
+        # ساخت تمام ماژول‌ها
+        fetcher = OddsFetcher(session)
+        calculator = ArbCalculator()
+        stake_calc = StakeCalculator()
+        vig_remover = VigRemover()
+        bankroll = BankrollManager(redis_client)
+        
+        verifier = OddsVerifier(fetcher)
+        profit_filter = DynamicProfitFilter()
+        classifier = BookmakerClassifier()
+        steam_detector = SteamDetector(redis_client)
+        health_monitor = AccountHealthMonitor(redis_client)
+        exposure = ExposureController(redis_client)
+        
+        pipeline = FilterPipeline(
+            verifier=verifier,
+            profit_filter=profit_filter,
+            classifier=classifier,
+            steam_detector=steam_detector,
+            health_monitor=health_monitor,
+            exposure_controller=exposure
+        )
+        
+        clv_tracker = CLVTracker(redis_client)
+        ml_collector = MLCollector()
+        notifier = TelegramNotifier(settings.TELEGRAM_BOT_TOKEN, settings.TELEGRAM_CHAT_ID)
+        dashboard = Dashboard(health_monitor, redis_client)
+        
+        # اجرای هم‌زمان scan loop و داشبورد
+        await asyncio.gather(
+            scan_loop(pipeline, fetcher, calculator, notifier,
+                      steam_detector, clv_tracker, ml_collector, stake_calc, vig_remover, exposure),
+            dashboard.start_server(),
+            return_exceptions=True
+        )
+
 
 if __name__ == "__main__":
+    structlog.configure(wrapper_class=structlog.make_filtering_bound_logger(10))
     asyncio.run(main())
