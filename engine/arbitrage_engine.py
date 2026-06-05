@@ -9,6 +9,9 @@ import json
 from datetime import datetime, timezone
 from loguru import logger
 
+from engine.health_monitor import AccountHealthMonitor
+from engine.steam_detector import SteamDetector
+
 def calculate_min_profit_threshold(hours_to_event: float) -> float:
     """
     آستانه سود حداقل بر اساس زمان تا شروع بازی:
@@ -63,11 +66,14 @@ def calculate_urgency_score(hours_to_event: float, profit_pct: float) -> dict:
 DRY_RUN = os.getenv("DRY_RUN", "true").lower() == "true"
 
 r = redis.Redis(
-    host='redis',  # همیشه redis — در Docker این نام container است
+    host='redis',
     port=6379,
     db=0,
     decode_responses=True
 )
+
+health_monitor = AccountHealthMonitor(r)
+steam_detector = SteamDetector(r)
 
 # تنظیمات برای تست اولیه (سرمایه کم)
 MAX_DAILY_EXPOSURE_PER_BOOKIE = 3000  # برای تست ایمن
@@ -196,6 +202,20 @@ async def build_signal(arb: dict, bankroll: float, source: str) -> dict | None:
         legs = []
         for p, s in zip(prongs, stakes):
             b = p["bookmaker"].lower().replace(" ", "")
+            
+            # 1. Health Check
+            health_score = await health_monitor.calculate_health_score(b)
+            if health_score < 50:
+                logger.warning(f"بوکمیکر {b} نمره سلامت پایینی دارد ({health_score}) - سیگنال رد شد")
+                return None
+                
+            # 2. Steam Detection
+            bet_type = p.get("betType", "1X2")
+            await steam_detector.record_odd_snapshot(event_id, b, bet_type, float(p["odd"]))
+            if await steam_detector.detect_steam(event_id, b, bet_type):
+                logger.warning(f"سیگنال {event} به دلیل Steam (نوسان ناگهانی ضریب) در {b} رد شد")
+                return None
+            
             if not await check_daily_exposure(b, s):
                 return None
                 

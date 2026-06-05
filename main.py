@@ -12,10 +12,13 @@ from datetime import datetime
 from loguru import logger
 
 from core.surebet_client import SurebetClient
-from engine.arbitrage_engine import build_signal, save_signal_to_redis
+from engine.arbitrage_engine import build_signal, save_signal_to_redis, r, health_monitor
 from engine.blacklist import is_blacklisted_event
 from bot.telegram_bot import send_surebet_alert
 from ml_predictor import ArbitragePredictor
+from engine.clv_tracker import CLVTracker
+
+clv_tracker = CLVTracker(r)
 
 # List of sports to scan (GOD MODE Phase 3 Multi-Sport)
 SPORTS = [
@@ -167,6 +170,17 @@ async def main():
                             success = await send_surebet_alert(signal_data)
                             if success:
                                 logger.success(f"سیگنال واقعی ارسال شد: {event_name} — {signal_data['profit_pct']}%")
+                                
+                                # فاز ۳: ثبت CLV و اضافه کردن تعداد شرط‌ها در Health Monitor
+                                for leg in signal_data["legs"]:
+                                    await health_monitor.increment_daily_bet_count(leg["bookie"])
+                                    await clv_tracker.record_bet_placement(
+                                        odd_taken=float(leg["odd"]),
+                                        event_id=signal_data["id"],
+                                        market=leg["selection"],
+                                        bookmaker=leg["bookie"]
+                                    )
+                                    
                             await asyncio.sleep(random.uniform(2, 5))  # رفتار انسانی
             
             logger.info(f"پایان دور اسکن تمام لیگ‌ها. توقف برای {FETCH_INTERVAL} ثانیه...")
