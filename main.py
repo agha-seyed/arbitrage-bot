@@ -15,6 +15,7 @@ from core.surebet_client import SurebetClient
 from engine.arbitrage_engine import build_signal, save_signal_to_redis
 from engine.blacklist import is_blacklisted_event
 from bot.telegram_bot import send_surebet_alert
+from ml_predictor import ArbitragePredictor
 
 # List of sports to scan (GOD MODE Phase 3 Multi-Sport)
 SPORTS = [
@@ -60,7 +61,7 @@ def setup_signal_handlers():
 async def main():
     global last_success
     logger.info("Italian Arbitrage Beast 2027 — GOD MODE v8.0 فعال شد 🚀")
-    logger.info("حالت تست API — سود زیر ۱٪ — هر ۶۰ ثانیه یک درخواست")
+    logger.info("ربات در حالت واقعی (Real Mode) قرار دارد. تمامی سیگنال‌ها پردازش می‌شوند.")
     
     if os.name != "nt":
         setup_signal_handlers()
@@ -87,20 +88,28 @@ async def main():
                 if "surebets" in data:
                     last_success = datetime.utcnow()
                     count = len(data["surebets"])
-                    logger.info(f"{count} سیگنال تست پیدا شد — پردازش شروع شد")
-                    for arb in data["surebets"][:5]:  # فقط ۵ تا اول برای تست
+                    logger.info(f"{count} سیگنال واقعی پیدا شد — پردازش شروع شد")
+                    for arb in data["surebets"]:  # پردازش تمام سیگنال‌ها
                         event_name = arb["event"]["name"]
                         if is_blacklisted_event(event_name):
                             logger.info(f"رویداد بلاک‌لیست — رد شد: {event_name}")
                             continue
                         
-                        signal_data = await build_signal(arb, BANKROLL, "surebet_test")
+                        signal_data = await build_signal(arb, BANKROLL, "surebet")
                         if signal_data:
+                            signal_data["sport"] = sport  # اضافه کردن اسم ورزش برای ML
                             await save_signal_to_redis(signal_data)
+                            
+                            # ذخیره در فایل برای Machine Learning
+                            try:
+                                ArbitragePredictor.save_real_signal(signal_data)
+                            except Exception as e:
+                                logger.error(f"Error saving ML data: {e}")
+                                
                             success = await send_surebet_alert(signal_data)
                             if success:
-                                logger.success(f"سیگنال تست ارسال شد: {event_name} — {signal_data['profit_pct']}%")
-                            await asyncio.sleep(random.uniform(5, 8))  # رفتار انسانی
+                                logger.success(f"سیگنال واقعی ارسال شد: {event_name} — {signal_data['profit_pct']}%")
+                            await asyncio.sleep(random.uniform(2, 5))  # رفتار انسانی
             
             logger.info(f"پایان دور اسکن تمام لیگ‌ها. توقف برای {FETCH_INTERVAL} ثانیه...")
             await asyncio.sleep(FETCH_INTERVAL)  # دقیقاً ۶۰ ثانیه صبر کن

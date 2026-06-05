@@ -22,6 +22,34 @@ class ArbitragePredictor:
             return True
         return False
         
+    @staticmethod
+    def save_real_signal(signal_data, file_path="data/real_trades.csv"):
+        """Save a real signal to CSV for future ML training."""
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        
+        # Calculate implied prob from the true_odd of the first leg, or just an average
+        implied_prob = sum(1.0 / float(leg["odd"]) for leg in signal_data["legs"])
+        num_bookies = len(signal_data["legs"])
+        market_type = 1 if signal_data.get("market", "H2H").upper() == "H2H" else 2
+        
+        row = pd.DataFrame([{
+            'timestamp': signal_data.get("timestamp", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+            'event': signal_data.get("event"),
+            'sport': signal_data.get("sport", "unknown"),
+            'profit_pct': signal_data.get("profit_pct", 0),
+            'implied_prob': round(implied_prob, 4),
+            'num_bookies': num_bookies,
+            'market_type': market_type,
+            'is_successful': -1 # -1 means pending evaluation (user can update later if bet was void)
+        }])
+        
+        if not os.path.exists(file_path):
+            row.to_csv(file_path, index=False)
+        else:
+            row.to_csv(file_path, mode='a', header=False, index=False)
+        
+        logger.info(f"Signal saved to {file_path} for ML training.")
+        
     def train(self, data_file="data/historical_trades.csv"):
         """Train a Machine Learning model to predict if an arbitrage opportunity will be profitable long-term or result in a void/limited bet."""
         logger.info(f"Loading historical data from {data_file}...")
