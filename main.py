@@ -23,6 +23,7 @@ from tracking.clv_tracker import CLVTracker
 from tracking.ml_collector import MLCollector
 
 from output.telegram_notifier import TelegramNotifier
+from output.telegram_listener import TelegramListener
 from output.dashboard import Dashboard
 
 log = structlog.get_logger()
@@ -153,13 +154,15 @@ async def main():
         clv_tracker = CLVTracker(redis_client)
         ml_collector = MLCollector()
         notifier = TelegramNotifier(settings.TELEGRAM_BOT_TOKEN, settings.TELEGRAM_CHAT_ID)
+        listener = TelegramListener()
         dashboard = Dashboard(health_monitor, redis_client)
         
-        # اجرای هم‌زمان scan loop و داشبورد
+        # اجرای هم‌زمان scan loop و داشبورد و لیسنر تلگرام
         await asyncio.gather(
             scan_loop(pipeline, fetcher, calculator, notifier,
                       steam_detector, clv_tracker, ml_collector, stake_calc, vig_remover, exposure),
             dashboard.start_server(),
+            listener.start_polling(),
             return_exceptions=True
         )
 
