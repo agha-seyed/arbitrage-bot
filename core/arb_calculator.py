@@ -16,6 +16,7 @@ class ArbCalculator:
             
             best_h2h = {"home": {"price": 0, "bookie": ""}, "away": {"price": 0, "bookie": ""}, "draw": {"price": 0, "bookie": ""}}
             best_totals = {}
+            best_spreads = {}
             
             for book in bookmakers:
                 bookie_name = book["key"]
@@ -40,6 +41,19 @@ class ArbCalculator:
                             name = outcome["name"]
                             if name in ["Over", "Under"] and outcome["price"] > best_totals[point][name]["price"]:
                                 best_totals[point][name] = {"price": outcome["price"], "bookie": bookie_name, "outcome_name": name, "point": point}
+                                
+                    elif market["key"] == "spreads":
+                        for outcome in market.get("outcomes", []):
+                            point = outcome.get("point")
+                            if not point: continue
+                            
+                            # Create nested dict for the specific point line
+                            if point not in best_spreads:
+                                best_spreads[point] = {home_team: {"price": 0, "bookie": ""}, away_team: {"price": 0, "bookie": ""}}
+                                
+                            name = outcome["name"]
+                            if name in [home_team, away_team] and outcome["price"] > best_spreads[point][name]["price"]:
+                                best_spreads[point][name] = {"price": outcome["price"], "bookie": bookie_name, "outcome_name": name, "point": point}
             
             # بررسی H2H
             h_price, a_price, d_price = best_h2h["home"]["price"], best_h2h["away"]["price"], best_h2h["draw"]["price"]
@@ -86,6 +100,26 @@ class ArbCalculator:
                             "legs": [
                                 {"bookmaker": data["Over"]["bookie"], "market": "totals", "outcome": "Over", "odd": o_price},
                                 {"bookmaker": data["Under"]["bookie"], "market": "totals", "outcome": "Under", "odd": u_price}
+                            ]
+                        })
+                        
+            # بررسی Spreads (Asian Handicap)
+            for point, data in best_spreads.items():
+                h_price, a_price = data[home_team]["price"], data[away_team]["price"]
+                if h_price > 1 and a_price > 1:
+                    ip = 1/h_price + 1/a_price
+                    if ip < 1:
+                        profit_pct = (1 - ip) * 100
+                        opportunities.append({
+                            "event_id": event_id,
+                            "sport_key": sport_key,
+                            "commence_time": commence_time,
+                            "event_name": f"{home_team} vs {away_team} (AH {point})",
+                            "profit_pct": profit_pct,
+                            "market_type": "Spreads",
+                            "legs": [
+                                {"bookmaker": data[home_team]["bookie"], "market": "spreads", "outcome": home_team, "odd": h_price},
+                                {"bookmaker": data[away_team]["bookie"], "market": "spreads", "outcome": away_team, "odd": a_price}
                             ]
                         })
                         

@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     MAX_SINGLE_BET_PCT: float = 0.20
     MIN_STAKE_EUR: float = 2.0
     
+    # Database (Default to SQLite async if not provided)
+    DATABASE_URL: str = "sqlite+aiosqlite:///arbitrage.db"
+    
     # Dashboard
     DASHBOARD_PORT: int = 8080
     DASHBOARD_HOST: str = "0.0.0.0"

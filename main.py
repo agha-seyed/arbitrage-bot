@@ -25,6 +25,12 @@ from tracking.ml_collector import MLCollector
 from output.telegram_notifier import TelegramNotifier
 from output.telegram_listener import TelegramListener
 from output.dashboard import Dashboard
+from tracking.db_session import engine
+from tracking.models import Base, ArbitrageOpportunity
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import sessionmaker
+
+async_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
 log = structlog.get_logger()
 
@@ -106,7 +112,20 @@ async def scan_loop(pipeline: FilterPipeline, fetcher: OddsFetcher,
                     ml_collector.record_approved(result)
                     
                     # ارسال به تلگرام
-                    await notifier.send_arbitrage_alert(result)
+                    if approved:
+                        # ذخیره در دیتابیس
+                        async with async_session() as db:
+                            new_opp = ArbitrageOpportunity(
+                                event_id=opp.get('event_id', 'unknown'),
+                                sport_key=opp.get('sport_key', 'unknown'),
+                                profit_pct=opp.get('profit_pct', 0.0),
+                                quality=opp.get('quality', {}).get('quality', 'UNKNOWN'),
+                                is_steamed=False # اگر به اینجا رسیده یعنی steam نبوده
+                            )
+                            db.add(new_opp)
+                            await db.commit()
+                        
+                        await notifier.send_arbitrage_alert(result)
                     
                     log.info(
                         "signal_sent",
@@ -123,7 +142,11 @@ async def scan_loop(pipeline: FilterPipeline, fetcher: OddsFetcher,
 
 
 async def main():
-    log.info("bot_starting", version="GOD_MODE_v9.0")
+    log.info("bot_starting", version="GOD_MODE_v9.0_ENTERPRISE")
+    
+    # ساخت جداول دیتابیس
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
     
     redis_client = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
     

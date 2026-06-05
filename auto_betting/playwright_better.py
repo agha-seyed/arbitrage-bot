@@ -11,6 +11,36 @@ except ImportError:
     log.error("playwright_not_installed")
     async_playwright = None
     stealth_async = None
+import random
+
+class ProxyManager:
+    """
+    مدیریت چرخش پروکسی برای جلوگیری از بن شدن.
+    """
+    def __init__(self, proxies: list = None):
+        # ساختار دیفالت یا خواندن از متغیرهای محیطی
+        self.proxies = proxies or []
+        env_proxies = os.getenv("PROXY_LIST", "")
+        if env_proxies:
+            for p in env_proxies.split(","):
+                # expected format: http://usr:pwd@ip:port
+                # playwright format: {"server": "http://ip:port", "username": "usr", "password": "pwd"}
+                try:
+                    parts = p.split("@")
+                    auth = parts[0].replace("http://", "").split(":")
+                    server = f"http://{parts[1]}"
+                    self.proxies.append({
+                        "server": server,
+                        "username": auth[0],
+                        "password": auth[1]
+                    })
+                except Exception:
+                    pass
+                    
+    def get_random_proxy(self) -> dict:
+        if not self.proxies:
+            return None
+        return random.choice(self.proxies)
 
 class AutoBetter:
     """
@@ -22,8 +52,8 @@ class AutoBetter:
         self.username = username or os.getenv(f"{bookmaker.upper()}_USERNAME")
         self.password = password or os.getenv(f"{bookmaker.upper()}_PASSWORD")
         
-        # Proxy Format: {"server": "http://ip:port", "username": "usr", "password": "pwd"}
-        self.proxy = proxy
+        self.proxy_manager = ProxyManager()
+        self.proxy = proxy or self.proxy_manager.get_random_proxy()
         
     async def place_bet(self, event_name: str, selection: str, odd: float, stake: float):
         if not async_playwright:
