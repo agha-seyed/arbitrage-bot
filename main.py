@@ -29,7 +29,7 @@ SPORTS = [
 ]
 REGIONS = "eu"
 MARKETS = "h2h,totals"  # تست بدون ثبت واقعی
-BANKROLL = float(os.getenv("BANKROLL", "5000"))  # سرمایه فرضی برای تست
+BANKROLL = float(os.getenv("BANKROLL", "100"))  # Micro-Bankroll برای امنیت
 FETCH_INTERVAL = 60  # دقیقاً ۶۰ ثانیه — محدودیت تست API
 WATCHDOG_TIMEOUT = 300  # ۵ دقیقه بدون سیگنال = ری‌استارت
 

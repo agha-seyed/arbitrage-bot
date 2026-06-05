@@ -117,30 +117,29 @@ async def check_daily_exposure(bookie: str, stake: int) -> bool:
     await r.expire(key, 86400)
     return True
 
-def calculate_stakes(bankroll: float, odds: list, profit_pct: float, bookies: list) -> list:
-    if not odds or any(o <= 1.01 for o in odds):
-        return []
-    
+def calculate_stakes(total_bankroll: float, odds: list, profit_pct: float, bookies: list) -> list | None:
     ip_total = sum(1.0 / o for o in odds)
-    base = bankroll * KELLY_FRACTION * (profit_pct / 100)
-    
-    # اصلاح: جلوگیری از مبالغ خیلی کم در سودهای پایین
-    if base < MIN_STAKE * len(odds):
-        base = MIN_STAKE * len(odds)
+    if ip_total >= 1:
+        return None
         
+    # فاز 4: مدیریت سرمایه خرد (Micro-Bankroll) - جلوگیری از ورشکستگی
+    # حداکثر 20% از کل بانک‌رول را در یک شرط درگیر می‌کنیم
+    max_allocation_pct = 0.20
+    investment = total_bankroll * max_allocation_pct
+    
+    target_payout = investment / ip_total
     stakes = []
-    for i, odd in enumerate(odds):
-        raw = (base / ip_total) / odd
-        bookie = bookies[i].lower().replace(" ", "")
-        max_allowed = BOOKIE_MAX_STAKE.get(bookie, 500)
-        raw = min(raw, max_allowed * 0.9)
-        stakes.append(human_round(raw))
     
-    total = sum(stakes)
-    if total > DAILY_TOTAL_EXPOSURE_LIMIT:
-        scale = DAILY_TOTAL_EXPOSURE_LIMIT / total * 0.95
-        stakes = [human_round(s * scale) for s in stakes]
-    
+    for o, b in zip(odds, bookies):
+        s = round(target_payout / o, 2)
+        
+        # کنترل حداقل شرط سایت‌ها (Minimum Bet معمولاً 2 یورو است)
+        if s < 2.0:
+            logger.info(f"مبلغ سهم سایت {b} کمتر از 2 یورو ({s}) شد — آربیتراژ لغو گردید.")
+            return None
+            
+        stakes.append(s)
+        
     return stakes
 
 async def is_seen(event_id: str) -> bool:
