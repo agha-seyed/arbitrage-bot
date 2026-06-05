@@ -1,24 +1,18 @@
-# render.yaml — برای وقتی آماده دیپلوی روی ابر بودی
 services:
-  - type: redis
-    name: beast-redis-test
-    region: frankfurt
+  - type: web
+    name: arbitrage-bot
+    env: docker
     plan: free
-    ipAllowList: [] # اصلاح ۱: لیست خالی یعنی فقط دسترسی داخلی مجاز است
-
-  - type: worker
-    name: arbitrage-beast-test
-    env: python # اصلاح ۲: زبان پایتون مشخص شد
-    region: frankfurt
-    plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: python main.py
+    dockerCommand: "python main.py"
+    healthCheckPath: "/"
     envVars:
       - key: TELEGRAM_BOT_TOKEN
         sync: false
       - key: TELEGRAM_CHAT_ID
         sync: false
-      - key: DRY_RUN
+      - key: ODDS_API_KEY
         sync: false
-      - key: BANKROLL
+      - key: REDIS_URL
         sync: false
+      - key: ENABLE_AUTO_BETTING
+        value: "false"

@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite+aiosqlite:///arbitrage.db"
     
     # Dashboard
-    DASHBOARD_PORT: int = 8080
+    DASHBOARD_PORT: int = int(__import__("os").environ.get("PORT", 8080))
     DASHBOARD_HOST: str = "0.0.0.0"
 
     # Playwright Auto-Betting

@@ -1,26 +1,33 @@
-# Dockerfile — GOD MODE v8.0 🚀
 FROM python:3.11-slim
+
+# نصب پیش‌نیازهای سیستمی برای Playwright
+RUN apt-get update && apt-get install -y \
+    wget \
+    gnupg \
+    libgconf-2-4 \
+    libnss3 \
+    libxss1 \
+    libasound2 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libgtk-3-0 \
+    fonts-liberation \
+    libappindicator3-1 \
+    xdg-utils \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# نصب فقط چیزایی که نیاز داریم
-RUN apt-get update && apt-get install -y \
-    gcc \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# نصب پکیج‌ها
+# کپی فایل نیازمندی‌ها و نصب آن‌ها
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# پوشه‌های لاگ و صدا
-RUN mkdir -p /app/logs /app/assets
+# نصب مرورگر برای Playwright
+RUN playwright install chromium
+RUN playwright install-deps
 
-# کپی کد
+# کپی تمام فایل‌های پروژه
 COPY . .
 
-# چک زنده بودن ربات (برای Render)
-HEALTHCHECK --interval=60s --timeout=10s --start-period=30s --retries=3 \
-    CMD python healthcheck.py || exit 1
-
+# اجرای اسکریپت اصلی
 CMD ["python", "main.py"]
