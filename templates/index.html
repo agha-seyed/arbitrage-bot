@@ -1,111 +1,273 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GOD MODE - Arbitrage Dashboard</title>
-    <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: '#0f172a',
+                        card: '#1e293b',
+                        accent: '#38bdf8'
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        body { background-color: #0f172a; color: #f8fafc; }
+        body { background-color: #0f172a; color: #f8fafc; font-family: 'Inter', sans-serif; }
         .glass {
             background: rgba(30, 41, 59, 0.7);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
         }
+        .pulse-border {
+            animation: pulse-border 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse-border {
+            0%, 100% { border-color: rgba(56, 189, 248, 0.2); }
+            50% { border-color: rgba(56, 189, 248, 0.8); }
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
     </style>
 </head>
-<body class="p-8 font-sans">
-    
-    <div class="max-w-6xl mx-auto">
-        <header class="flex justify-between items-center mb-10">
+<body class="h-screen flex overflow-hidden">
+
+    <!-- Sidebar -->
+    <aside class="w-64 glass border-r border-slate-800 flex flex-col hidden md:flex">
+        <div class="p-6 border-b border-slate-800">
+            <h1 class="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-accent to-blue-600 tracking-tight">
+                GOD MODE <span class="text-white text-sm align-top">v8.1</span>
+            </h1>
+            <p class="text-xs text-slate-400 mt-1 uppercase tracking-widest font-bold">Arbitrage Engine</p>
+        </div>
+        
+        <nav class="flex-1 p-4 space-y-2">
+            <a href="#" class="flex items-center gap-3 px-4 py-3 bg-blue-500/10 text-accent rounded-xl border border-blue-500/20 transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+                <span class="font-semibold">Live Signals</span>
+            </a>
+            <a href="#" class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-xl transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                <span class="font-semibold">Analytics (ML)</span>
+            </a>
+            <a href="#" class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-xl transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                <span class="font-semibold">Settings</span>
+            </a>
+        </nav>
+
+        <div class="p-4">
+            <div class="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl p-4 text-center">
+                <div class="flex justify-center mb-2">
+                    <span class="flex h-3 w-3 relative">
+                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                      <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                    </span>
+                </div>
+                <p class="text-sm font-bold text-white mb-1">Scanner Active</p>
+                <p class="text-xs text-blue-200">Checking 4 Sports & 12 Bookies</p>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col overflow-hidden">
+        <!-- Header -->
+        <header class="glass z-10 px-8 py-5 flex justify-between items-center border-b border-slate-800">
             <div>
-                <h1 class="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-blue-500">
-                    Italian Arbitrage Beast
-                </h1>
-                <p class="text-slate-400 mt-2">Live Monitoring Dashboard v8.1 🚀</p>
+                <h2 class="text-xl font-bold text-white">Live Monitoring Dashboard</h2>
+                <p class="text-sm text-slate-400">Auto-refreshing every 60s</p>
             </div>
             
             <div class="flex gap-4">
-                <div class="glass px-6 py-3 rounded-xl text-center">
-                    <p class="text-sm text-slate-400">Total Signals (Last 50)</p>
-                    <p class="text-2xl font-bold text-white">{{ total_found }}</p>
+                <div class="bg-slate-800/80 px-5 py-2 rounded-lg border border-slate-700 flex items-center gap-3">
+                    <div class="p-2 bg-blue-500/20 rounded-md"><svg class="w-5 h-5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg></div>
+                    <div>
+                        <p class="text-xs text-slate-400">Total Signals</p>
+                        <p class="text-lg font-bold text-white">{{ total_found }}</p>
+                    </div>
                 </div>
-                <div class="glass px-6 py-3 rounded-xl text-center">
-                    <p class="text-sm text-slate-400">Avg Profit</p>
-                    <p class="text-2xl font-bold text-green-400">{{ avg_profit }}%</p>
+                <div class="bg-slate-800/80 px-5 py-2 rounded-lg border border-slate-700 flex items-center gap-3">
+                    <div class="p-2 bg-green-500/20 rounded-md"><svg class="w-5 h-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div>
+                    <div>
+                        <p class="text-xs text-slate-400">Avg ROI</p>
+                        <p class="text-lg font-bold text-green-400">{{ avg_profit }}%</p>
+                    </div>
                 </div>
             </div>
         </header>
 
-        <div class="grid grid-cols-1 gap-6">
-            {% if signals %}
-                {% for signal in signals %}
-                <div class="glass rounded-2xl p-6 transition transform hover:-translate-y-1 hover:shadow-2xl">
-                    <div class="flex justify-between items-start mb-4">
-                        <div>
-                            <span class="px-3 py-1 text-xs font-semibold rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                                {{ signal.market | default("H2H") }}
-                            </span>
-                            <h2 class="text-xl font-bold mt-3">{{ signal.event }}</h2>
-                            <p class="text-sm text-slate-400 mt-1">Found: {{ signal.timestamp | default("N/A") }}</p>
-                        </div>
-                        <div class="text-right">
-                            <p class="text-3xl font-bold text-green-400">{{ signal.profit_pct }}%</p>
-                            <p class="text-sm text-slate-400">Profit: €{{ signal.guaranteed_profit }}</p>
-                            <p class="text-xs text-slate-500 mt-1">Total Stake: €{{ signal.total_stake }}</p>
-                        </div>
-                    </div>
+        <!-- Scrollable Content -->
+        <div class="flex-1 overflow-y-auto p-8">
+            
+            <!-- Chart Section -->
+            <div class="glass rounded-2xl p-6 mb-8 border border-slate-700">
+                <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/></svg>
+                    Profit Margin Distribution
+                </h3>
+                <div class="h-48">
+                    <canvas id="profitChart"></canvas>
+                </div>
+            </div>
 
-                    <div class="mt-6">
-                        <h3 class="text-sm font-semibold text-slate-300 mb-3 border-b border-slate-700 pb-2">Legs Details & True Odds</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {% for leg in signal.legs %}
-                            <div class="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
-                                <div class="flex justify-between items-center mb-2">
-                                    <span class="font-bold text-white uppercase">{{ leg.bookie }}</span>
-                                    <span class="bg-slate-700 text-xs px-2 py-1 rounded">{{ leg.selection }}</span>
+            <!-- Signals Grid -->
+            <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                Recent Opportunities
+            </h3>
+            
+            <div class="grid grid-cols-1 gap-6">
+                {% if signals %}
+                    {% for signal in signals %}
+                    <div class="glass rounded-2xl p-6 transition transform hover:-translate-y-1 hover:shadow-2xl border border-slate-700 pulse-border relative overflow-hidden group">
+                        
+                        <div class="absolute top-0 right-0 w-32 h-32 bg-accent/5 rounded-full blur-3xl -mr-10 -mt-10 transition group-hover:bg-accent/10"></div>
+                        
+                        <div class="flex justify-between items-start mb-6 relative z-10">
+                            <div>
+                                <div class="flex gap-2 items-center">
+                                    <span class="px-3 py-1 text-xs font-bold rounded-md bg-blue-500/20 text-accent border border-blue-500/30 uppercase tracking-wide">
+                                        {{ signal.market | default("H2H") }}
+                                    </span>
+                                    <span class="text-xs text-slate-400 flex items-center gap-1">
+                                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                        {{ signal.timestamp | default("Just now") }}
+                                    </span>
                                 </div>
-                                
-                                <div class="space-y-1 mt-3 text-sm">
-                                    <div class="flex justify-between">
-                                        <span class="text-slate-400">Odd:</span>
-                                        <span class="font-bold text-yellow-400">{{ leg.odd }}</span>
-                                    </div>
-                                    <div class="flex justify-between">
-                                        <span class="text-slate-400">True Odd:</span>
-                                        <span class="font-bold text-blue-300">{{ leg.true_odd | default("-") }}</span>
-                                    </div>
-                                    <div class="flex justify-between">
-                                        <span class="text-slate-400">Value:</span>
-                                        {% if leg.value_pct and leg.value_pct > 0 %}
-                                            <span class="font-bold text-green-400">+{{ leg.value_pct }}%</span>
-                                        {% else %}
-                                            <span class="font-bold text-slate-300">{{ leg.value_pct | default("-") }}%</span>
-                                        {% endif %}
-                                    </div>
-                                </div>
-
-                                <div class="mt-4 pt-3 border-t border-slate-700 flex justify-between items-center">
-                                    <span class="text-slate-400 text-sm">Stake:</span>
-                                    <span class="font-bold text-white">€{{ leg.stake }}</span>
+                                <h2 class="text-2xl font-bold mt-3 text-white tracking-tight">{{ signal.event }}</h2>
+                                <p class="text-sm text-slate-400 mt-1 uppercase tracking-wider font-semibold">{{ signal.source | default("The-Odds-API") }}</p>
+                            </div>
+                            <div class="text-right bg-slate-900/50 p-4 rounded-xl border border-slate-700">
+                                <p class="text-sm text-slate-400 uppercase tracking-wider font-bold mb-1">Guaranteed ROI</p>
+                                <p class="text-4xl font-black text-green-400">{{ signal.profit_pct }}%</p>
+                                <div class="flex justify-end gap-3 mt-2 text-sm">
+                                    <span class="text-slate-300">Profit: <b class="text-white">€{{ signal.guaranteed_profit }}</b></span>
+                                    <span class="text-slate-500">|</span>
+                                    <span class="text-slate-300">Stake: <b class="text-white">€{{ signal.total_stake }}</b></span>
                                 </div>
                             </div>
-                            {% endfor %}
+                        </div>
+
+                        <div class="mt-4 relative z-10">
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {% for leg in signal.legs %}
+                                <div class="bg-slate-800/80 p-5 rounded-xl border border-slate-700/50 hover:border-slate-500 transition">
+                                    <div class="flex justify-between items-center mb-4">
+                                        <span class="font-black text-white text-lg uppercase tracking-wide">{{ leg.bookie }}</span>
+                                        <span class="bg-slate-700 text-xs px-3 py-1.5 rounded-md font-bold text-slate-200">{{ leg.selection }}</span>
+                                    </div>
+                                    
+                                    <div class="space-y-2 mt-3 text-sm">
+                                        <div class="flex justify-between items-center bg-slate-900/50 px-3 py-2 rounded">
+                                            <span class="text-slate-400">Placed Odd:</span>
+                                            <span class="font-black text-yellow-400 text-base">{{ leg.odd }}</span>
+                                        </div>
+                                        <div class="flex justify-between items-center px-3 py-1">
+                                            <span class="text-slate-500 text-xs">True Odd (No Vig):</span>
+                                            <span class="font-bold text-accent text-xs">{{ leg.true_odd | default("-") }}</span>
+                                        </div>
+                                        <div class="flex justify-between items-center px-3 py-1">
+                                            <span class="text-slate-500 text-xs">Value Edge:</span>
+                                            {% if leg.value_pct and leg.value_pct > 0 %}
+                                                <span class="font-bold text-green-400 text-xs">+{{ leg.value_pct }}%</span>
+                                            {% else %}
+                                                <span class="font-bold text-red-400 text-xs">{{ leg.value_pct | default("-") }}%</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-4 pt-4 border-t border-slate-700 flex justify-between items-center">
+                                        <span class="text-slate-400 text-sm font-semibold">Stake Amount:</span>
+                                        <span class="font-black text-white text-lg bg-blue-600 px-3 py-1 rounded-md">€{{ leg.stake }}</span>
+                                    </div>
+                                    
+                                    <a href="{{ leg.link }}" target="_blank" class="mt-4 block w-full py-2 text-center text-xs font-bold uppercase tracking-wider text-slate-300 bg-slate-700/50 hover:bg-slate-600 rounded transition">
+                                        Open Bookmaker ↗
+                                    </a>
+                                </div>
+                                {% endfor %}
+                            </div>
                         </div>
                     </div>
-                </div>
-                {% endfor %}
-            {% else %}
-                <div class="glass rounded-2xl p-10 text-center">
-                    <p class="text-slate-400 text-lg">No surebets found yet. The bot is scanning...</p>
-                </div>
-            {% endif %}
+                    {% endfor %}
+                {% else %}
+                    <div class="glass rounded-2xl p-16 text-center border-dashed border-2 border-slate-600">
+                        <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-800 mb-4">
+                            <svg class="w-8 h-8 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                        </div>
+                        <h3 class="text-xl font-bold text-white mb-2">No surebets found yet</h3>
+                        <p class="text-slate-400 text-sm max-w-md mx-auto">The engine is currently scanning multiple markets across Italy. Opportunities will appear here automatically.</p>
+                    </div>
+                {% endif %}
+            </div>
+            
+            <footer class="mt-12 text-center text-sm text-slate-600 pb-8">
+                &copy; 2026 Italian Arbitrage Beast. For educational purposes.
+            </footer>
         </div>
-    </div>
+    </main>
 
-    <!-- Auto refresh every 60 seconds -->
     <script>
+        // Data for Chart
+        const signalsData = {{ signals | tojson | safe }};
+        const profits = signalsData.map(s => parseFloat(s.profit_pct)).reverse();
+        const labels = signalsData.map((s, i) => `Signal ${signalsData.length - i}`).reverse();
+
+        if (profits.length > 0) {
+            const ctx = document.getElementById('profitChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'ROI %',
+                        data: profits,
+                        borderColor: '#38bdf8',
+                        backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: '#fff',
+                        pointBorderColor: '#38bdf8',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { color: '#94a3b8' }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Auto refresh
         setTimeout(function(){
             window.location.reload(1);
         }, 60000);

@@ -8,11 +8,9 @@ class SurebetClient:
     def __init__(self):
         self.api_key = os.getenv("THE_ODDS_API_KEY", "f9a8245e9324a014d9469483b41f35e0")
         self.session = None
-        self.endpoint = "https://api.the-odds-api.com/v4/sports/soccer_italy_serie_a/odds"
-        self.params = {
+        self.base_url = "https://api.the-odds-api.com/v4/sports/{}/odds"
+        self.default_params = {
             "apiKey": self.api_key,
-            "regions": "eu",
-            "markets": "h2h,totals",  # پشتیبانی از Over/Under اضافه شد
             "oddsFormat": "decimal",
             "dateFormat": "iso"
         }
@@ -20,14 +18,19 @@ class SurebetClient:
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/131 Safari/537.36"
         }
 
-    async def fetch(self):
+    async def fetch_odds(self, sport, regions, markets):
         """دریافت odds و پیدا کردن آربیتراژ"""
         if self.session is None:
             self.session = aiohttp.ClientSession()
             
+        endpoint = self.base_url.format(sport)
+        params = self.default_params.copy()
+        params["regions"] = regions
+        params["markets"] = markets
+
         for attempt in range(5):
             try:
-                async with self.session.get(self.endpoint, params=self.params, headers=self.headers, timeout=25) as resp:
+                async with self.session.get(endpoint, params=params, headers=self.headers, timeout=25) as resp:
                     if resp.status == 200:
                         data = await resp.json()
                         logger.info(f"داده از The-Odds-API گرفته شد — {len(data)} بازی")

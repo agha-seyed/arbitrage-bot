@@ -16,8 +16,15 @@ from engine.arbitrage_engine import build_signal, save_signal_to_redis
 from engine.blacklist import is_blacklisted_event
 from bot.telegram_bot import send_surebet_alert
 
-# تنظیمات — از .env بگیر یا پیش‌فرض (برای تست)
-DRY_RUN = os.getenv("DRY_RUN", "true").lower() == "true"  # تست بدون ثبت واقعی
+# List of sports to scan (GOD MODE Phase 3 Multi-Sport)
+SPORTS = [
+    "soccer_italy_serie_a", 
+    "soccer_uefa_champs_league",
+    "basketball_euroleague",
+    "tennis_atp"
+]
+REGIONS = "eu"
+MARKETS = "h2h,totals"  # تست بدون ثبت واقعی
 BANKROLL = float(os.getenv("BANKROLL", "5000"))  # سرمایه فرضی برای تست
 FETCH_INTERVAL = 60  # دقیقاً ۶۰ ثانیه — محدودیت تست API
 WATCHDOG_TIMEOUT = 300  # ۵ دقیقه بدون سیگنال = ری‌استارت
@@ -54,8 +61,6 @@ async def main():
     global last_success
     logger.info("Italian Arbitrage Beast 2027 — GOD MODE v8.0 فعال شد 🚀")
     logger.info("حالت تست API — سود زیر ۱٪ — هر ۶۰ ثانیه یک درخواست")
-    if DRY_RUN:
-        logger.warning("[DRY_RUN] فعال — هیچ stake واقعی ثبت نمی‌شه (تست امن)")
     
     if os.name != "nt":
         setup_signal_handlers()
@@ -69,25 +74,35 @@ async def main():
     
     while True:
         try:
-            data = await asyncio.wait_for(client.fetch(), timeout=30)
-            if data and "surebets" in data:
-                last_success = datetime.utcnow()
-                count = len(data["surebets"])
-                logger.info(f"{count} سیگنال تست پیدا شد — پردازش شروع شد")
-                for arb in data["surebets"][:5]:  # فقط ۵ تا اول برای تست
-                    event_name = arb["event"]["name"]
-                    if is_blacklisted_event(event_name):
-                        logger.info(f"رویداد بلاک‌لیست — رد شد: {event_name}")
-                        continue
-                    
-                    signal = await build_signal(arb, BANKROLL, "surebet_test")
-                    if signal:
-                        await save_signal_to_redis(signal)
-                        success = await send_surebet_alert(signal)
-                        if success:
-                            logger.success(f"سیگنال تست ارسال شد: {event_name} — {signal['profit_pct']}%")
-                        await asyncio.sleep(random.uniform(5, 8))  # رفتار انسانی
+            for sport in SPORTS:
+                logger.info(f"شروع اسکن آربیتراژ برای لیگ: {sport}")
+                
+                # دریافت ضرایب
+                data = await asyncio.wait_for(client.fetch_odds(sport, REGIONS, MARKETS), timeout=30)
+                
+                if not data:
+                    logger.warning(f"دیتایی برای {sport} دریافت نشد.")
+                    continue
+                
+                if "surebets" in data:
+                    last_success = datetime.utcnow()
+                    count = len(data["surebets"])
+                    logger.info(f"{count} سیگنال تست پیدا شد — پردازش شروع شد")
+                    for arb in data["surebets"][:5]:  # فقط ۵ تا اول برای تست
+                        event_name = arb["event"]["name"]
+                        if is_blacklisted_event(event_name):
+                            logger.info(f"رویداد بلاک‌لیست — رد شد: {event_name}")
+                            continue
+                        
+                        signal_data = await build_signal(arb, BANKROLL, "surebet_test")
+                        if signal_data:
+                            await save_signal_to_redis(signal_data)
+                            success = await send_surebet_alert(signal_data)
+                            if success:
+                                logger.success(f"سیگنال تست ارسال شد: {event_name} — {signal_data['profit_pct']}%")
+                            await asyncio.sleep(random.uniform(5, 8))  # رفتار انسانی
             
+            logger.info(f"پایان دور اسکن تمام لیگ‌ها. توقف برای {FETCH_INTERVAL} ثانیه...")
             await asyncio.sleep(FETCH_INTERVAL)  # دقیقاً ۶۰ ثانیه صبر کن
             
         except Exception as e:
