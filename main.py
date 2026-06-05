@@ -155,7 +155,7 @@ async def main():
         ml_collector = MLCollector()
         notifier = TelegramNotifier(settings.TELEGRAM_BOT_TOKEN, settings.TELEGRAM_CHAT_ID)
         listener = TelegramListener()
-        dashboard = Dashboard(health_monitor, redis_client)
+        dashboard = Dashboard(health_monitor, clv_tracker, redis_client)
         
         # اجرای هم‌زمان scan loop و داشبورد و لیسنر تلگرام
         await asyncio.gather(

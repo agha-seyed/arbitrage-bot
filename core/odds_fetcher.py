@@ -84,7 +84,10 @@ class OddsFetcher:
         try:
             async with self.session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=10)) as r:
                 if r.status == 200:
-                    return await r.json()
+                    data = await r.json()
+                    for event in data:
+                        event['sport_key'] = sport_key
+                    return data
                 elif r.status == 429:
                     log.warning("primary_api_rate_limited")
                     return None

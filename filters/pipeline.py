@@ -39,6 +39,9 @@ class FilterPipeline:
         """
         event_id = opportunity.get('event_id', 'unknown')
         
+        if not opportunity.get('legs'):
+            return False, {"reason": "NO_LEGS"}
+        
         # --- فیلتر ۱: کیفیت بوکمیکر --- (فوری تر است چون نیاز به await ندارد)
         quality = self.classifier.evaluate(opportunity)
         if quality['quality'] == 'LOW':
