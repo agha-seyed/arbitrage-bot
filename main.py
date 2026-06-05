@@ -58,6 +58,59 @@ def setup_signal_handlers():
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, lambda s=sig: asyncio.create_task(graceful_shutdown(s, None)))
 
+async def verify_odds_before_alert(signal_data: dict, client: SurebetClient, sport: str) -> bool:
+    """
+    ضرایب را دقیقاً ۱ ثانیه قبل از ارسال، مجدداً از API دریافت می‌کند.
+    اگر تفاوت بیش از ۲٪ باشد، آربیتراژ را رد می‌کند.
+    """
+    event_id = signal_data.get("id")
+    if not event_id:
+        return True
+        
+    await asyncio.sleep(1)
+    
+    fresh_data = await client.fetch_event_odds(sport, event_id, REGIONS, MARKETS)
+    if not fresh_data:
+        logger.warning(f"عدم دریافت داده تاییدیه برای {event_id} - رد کردن آربیتراژ برای امنیت")
+        return False
+        
+    event_data = fresh_data[0] if isinstance(fresh_data, list) and len(fresh_data) > 0 else fresh_data
+    if not event_data or "bookmakers" not in event_data:
+        return False
+        
+    for leg in signal_data["legs"]:
+        bookmaker = leg["bookie"]
+        selection = leg["selection"]
+        original_odd = float(leg["odd"])
+        
+        current_odd = None
+        for b in event_data["bookmakers"]:
+            if b["title"].lower().replace(" ", "") == bookmaker:
+                for market in b["markets"]:
+                    if market["key"] == "h2h":
+                        for outcome in market["outcomes"]:
+                            if (selection == "1" and outcome["name"] == event_data.get("home_team")) or \
+                               (selection == "2" and outcome["name"] == event_data.get("away_team")) or \
+                               (selection == "X" and outcome["name"] == "Draw"):
+                                current_odd = float(outcome["price"])
+                    elif market["key"] == "totals":
+                        for outcome in market["outcomes"]:
+                            if selection.startswith(outcome["name"]) and str(outcome.get("point")) in selection:
+                                current_odd = float(outcome["price"])
+                break
+        
+        if not current_odd:
+            logger.warning(f"ضریب {bookmaker} در تاییدیه یافت نشد (بسته شده) - رد کردن سیگنال")
+            return False
+            
+        deviation = abs(current_odd - original_odd) / original_odd
+        if deviation > 0.02:
+            logger.warning(f"تغییر ضریب در {bookmaker}: قدیم {original_odd} جدید {current_odd} (تغییر {deviation*100:.1f}%) - رد شد")
+            return False
+
+    logger.info("تاییدیه با موفقیت انجام شد: ضریب‌ها معتبر هستند.")
+    return True
+
 async def main():
     global last_success
     logger.info("Italian Arbitrage Beast 2027 — GOD MODE v8.0 فعال شد 🚀")
@@ -97,7 +150,12 @@ async def main():
                         
                         signal_data = await build_signal(arb, BANKROLL, "surebet")
                         if signal_data:
-                            signal_data["sport"] = sport  # اضافه کردن اسم ورزش برای ML
+                            # Double Check Verification
+                            is_verified = await verify_odds_before_alert(signal_data, client, sport)
+                            if not is_verified:
+                                continue
+                                
+                            signal_data["sport"] = sport
                             await save_signal_to_redis(signal_data)
                             
                             # ذخیره در فایل برای Machine Learning

@@ -6,8 +6,25 @@ import random
 import redis.asyncio as redis
 import os
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from loguru import logger
+
+def calculate_min_profit_threshold(hours_to_event: float) -> float:
+    """
+    آستانه سود حداقل بر اساس زمان تا شروع بازی:
+    - بیش از 24 ساعت: حداقل 1.0% سود
+    - 6 تا 24 ساعت: حداقل 1.5% سود  
+    - 1 تا 6 ساعت: حداقل 2.0% سود
+    - کمتر از 1 ساعت: حداقل 3.0% سود
+    """
+    if hours_to_event > 24:
+        return 1.0
+    elif hours_to_event > 6:
+        return 1.5
+    elif hours_to_event > 1:
+        return 2.0
+    else:
+        return 3.0
 
 # DRY_RUN برای تست بدون ثبت واقعی
 DRY_RUN = os.getenv("DRY_RUN", "true").lower() == "true"
@@ -52,7 +69,7 @@ async def check_daily_exposure(bookie: str, stake: int) -> bool:
         logger.info(f"[تست] چک exposure برای {bookie} — stake {stake} € — مجاز")
         return True
     
-    key = f"exp:{datetime.now():%Y-%m-%d}:{bookie.lower()}"
+    key = f"exp:{datetime.now(timezone.utc):%Y-%m-%d}:{bookie.lower()}"
     current = int(await r.get(key) or 0)
     if current + stake > MAX_DAILY_EXPOSURE_PER_BOOKIE:
         logger.warning(f"حد روزانه {bookie} پر شد")
@@ -97,11 +114,27 @@ async def is_seen(event_id: str) -> bool:
 async def build_signal(arb: dict, bankroll: float, source: str) -> dict | None:
     try:
         profit_pct = float(arb.get("profit", 0))
-        if profit_pct < 0.1:  # در تست معمولاً زیر ۱٪ هست
-            return None
         
         event = arb["event"]["name"]
-        event_id = str(arb["id"])
+        event_id = arb.get("event_id", str(arb.get("id", "")))
+        commence_time_str = arb.get("commence_time", "")
+        
+        hours_to_event = 48.0 # default if not found
+        if commence_time_str:
+            try:
+                # Format: "2023-10-10T14:30:00Z"
+                commence_time = datetime.strptime(commence_time_str, "%Y-%m-%dT%H:%M:%SZ")
+                time_diff = commence_time - datetime.utcnow()
+                hours_to_event = time_diff.total_seconds() / 3600.0
+            except Exception as e:
+                logger.warning(f"Error parsing commence_time {commence_time_str}: {e}")
+                
+        min_threshold = calculate_min_profit_threshold(hours_to_event)
+        
+        if profit_pct < min_threshold:
+            logger.info(f"سیگنال رد شد: {event} سود {profit_pct:.2f}% کمتر از حدنصاب {min_threshold}% (ساعت تا شروع: {hours_to_event:.1f})")
+            return None
+            
         if await is_seen(event_id):
             return None
         
@@ -156,7 +189,7 @@ async def build_signal(arb: dict, bankroll: float, source: str) -> dict | None:
 async def save_signal_to_redis(signal: dict):
     try:
         # Save timestamp
-        signal["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        signal["timestamp"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         await r.lpush("recent_signals", json.dumps(signal))
         await r.ltrim("recent_signals", 0, 49) # Keep last 50
     except Exception as e:

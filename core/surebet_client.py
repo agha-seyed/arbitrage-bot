@@ -5,10 +5,10 @@ from loguru import logger
 import os
 
 class SurebetClient:
-    def __init__(self):
         self.api_key = os.getenv("THE_ODDS_API_KEY", "f9a8245e9324a014d9469483b41f35e0")
         self.session = None
         self.base_url = "https://api.the-odds-api.com/v4/sports/{}/odds"
+        self.event_base_url = "https://api.the-odds-api.com/v4/sports/{}/events/{}/odds"
         self.default_params = {
             "apiKey": self.api_key,
             "oddsFormat": "decimal",
@@ -50,12 +50,36 @@ class SurebetClient:
                 await asyncio.sleep(20)
         return {"surebets": []}
 
+    async def fetch_event_odds(self, sport, event_id, regions, markets):
+        """گرفتن ضرایب تازه فقط برای یک مسابقه خاص (جهت Double Check)"""
+        if self.session is None:
+            self.session = aiohttp.ClientSession()
+            
+        endpoint = self.event_base_url.format(sport, event_id)
+        params = self.default_params.copy()
+        params["regions"] = regions
+        params["markets"] = markets
+
+        try:
+            async with self.session.get(endpoint, params=params, headers=self.headers, timeout=15) as resp:
+                if resp.status == 200:
+                    return await resp.json()
+                elif resp.status == 429:
+                    logger.warning("Rate limit on double check.")
+                    return None
+        except Exception as e:
+            logger.error(f"خطا در دریافت ضرایب تکی: {e}")
+            return None
+        return None
+
     def find_arbitrage(self, games):
         """پیدا کردن آربیتراژ از odds در هر دو مارکت H2H و Totals"""
         surebets = []
         ALLOWED_BOOKIES = {"snai", "sisal", "eurobet", "goldbet", "better", "planetwin365", "betflag", "bet365", "bet365_it", "pinnacle", "betfair", "betfair_it"}
         
         for game in games:
+            event_id = game.get("id", "")
+            commence_time = game.get("commence_time", "")
             home_team = game["home_team"]
             away_team = game["away_team"]
             bookmakers = game["bookmakers"]
@@ -99,6 +123,8 @@ class SurebetClient:
                 if ip < 1:
                     profit = (1 - ip) * 100
                     surebets.append({
+                        "event_id": event_id,
+                        "commence_time": commence_time,
                         "event": {"name": f"{home_team} vs {away_team}"},
                         "market": "H2H",
                         "profit": profit,
@@ -118,6 +144,8 @@ class SurebetClient:
                     if ip < 1:
                         profit = (1 - ip) * 100
                         surebets.append({
+                            "event_id": event_id,
+                            "commence_time": commence_time,
                             "event": {"name": f"{home_team} vs {away_team} (O/U {point})"},
                             "market": "Totals",
                             "profit": profit,
