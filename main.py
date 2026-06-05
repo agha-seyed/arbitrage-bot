@@ -25,12 +25,8 @@ from tracking.ml_collector import MLCollector
 from output.telegram_notifier import TelegramNotifier
 from output.telegram_listener import TelegramListener
 from output.dashboard import Dashboard
-from tracking.db_session import engine
-from tracking.models import Base, ArbitrageOpportunity
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import sessionmaker
 
-async_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+from database.db_session import init_db, save_signal
 
 log = structlog.get_logger()
 
@@ -113,19 +109,9 @@ async def scan_loop(pipeline: FilterPipeline, fetcher: OddsFetcher,
                     
                     # ارسال به تلگرام
                     if approved:
-                        # ذخیره در دیتابیس
-                        async with async_session() as db:
-                            new_opp = ArbitrageOpportunity(
-                                event_id=opp.get('event_id', 'unknown'),
-                                sport_key=opp.get('sport_key', 'unknown'),
-                                profit_pct=opp.get('profit_pct', 0.0),
-                                quality=opp.get('quality', {}).get('quality', 'UNKNOWN'),
-                                is_steamed=False # اگر به اینجا رسیده یعنی steam نبوده
-                            )
-                            db.add(new_opp)
-                            await db.commit()
-                        
-                        await notifier.send_arbitrage_alert(result)
+                        telegram_msg_id = await notifier.send_arbitrage_alert(result)
+                        if telegram_msg_id > 0:
+                            await save_signal(result, telegram_msg_id)
                     
                     log.info(
                         "signal_sent",
@@ -145,8 +131,7 @@ async def main():
     log.info("bot_starting", version="GOD_MODE_v9.0_ENTERPRISE")
     
     # ساخت جداول دیتابیس
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    await init_db()
     
     redis_client = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
     
@@ -177,7 +162,10 @@ async def main():
         clv_tracker = CLVTracker(redis_client)
         ml_collector = MLCollector()
         notifier = TelegramNotifier(settings.TELEGRAM_BOT_TOKEN, settings.TELEGRAM_CHAT_ID)
-        listener = TelegramListener()
+        
+        # ۳. ساخت telegram listener
+        tg_listener = TelegramListener()
+        
         dashboard = Dashboard(health_monitor, clv_tracker, redis_client)
         
         # اجرای هم‌زمان scan loop و داشبورد و لیسنر تلگرام
@@ -185,7 +173,7 @@ async def main():
             scan_loop(pipeline, fetcher, calculator, notifier,
                       steam_detector, clv_tracker, ml_collector, stake_calc, vig_remover, exposure),
             dashboard.start_server(),
-            listener.start_polling(),
+            tg_listener.start(),
             return_exceptions=True
         )
 

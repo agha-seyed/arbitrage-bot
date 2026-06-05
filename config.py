@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     DASHBOARD_PORT: int = 8080
     DASHBOARD_HOST: str = "0.0.0.0"
 
+    # Playwright Auto-Betting
+    ENABLE_AUTO_BETTING: bool = False
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 settings = Settings()

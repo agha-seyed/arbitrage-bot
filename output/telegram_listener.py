@@ -1,83 +1,138 @@
-import structlog
-from telegram import Update
-from telegram.ext import Application, CallbackQueryHandler, ContextTypes
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes
+from database.db_session import update_signal_status
+from database.models import SignalStatus
 from config import settings
-import redis.asyncio as aioredis
-from tracking.ml_collector import MLCollector
-from tracking.db_session import engine
-from tracking.models import ArbitrageOpportunity
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import select
-
-async_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+import structlog
 
 log = structlog.get_logger()
 
 class TelegramListener:
     """
-    گوش دادن به دکمه‌های شیشه‌ای تلگرام.
-    باید به عنوان یک تسک در پس‌زمینه (مثلا در main.py) اجرا شود.
-    """
-    def __init__(self):
-        self.redis = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
-        self.ml_collector = MLCollector()
-        
-    async def button_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """زمانی که کاربر روی یکی از دکمه‌ها کلیک کند این تابع اجرا می‌شود."""
-        query = update.callback_query
-        await query.answer()  # متوقف کردن حالت لودینگ دکمه
-        
-        data = query.data
-        if data.startswith("bet_placed_"):
-            event_id = data.replace("bet_placed_", "")
-            log.info("user_interaction", action="bet_placed", event_id=event_id)
-            
-            # ذخیره تعامل کاربر برای آموزش ماشین
-            await self._record_interaction(event_id, "PLACED")
-            
-            # تغییر متن پیام برای اینکه کاربر بداند ثبت شده است
-            await query.edit_message_reply_markup(reply_markup=None)
-            await query.edit_message_text(text=f"{query.message.text}\n\n✅ <b>ثبت شد:</b> شما اعلام کردید این شرط را بسته‌اید.", parse_mode="HTML")
-            
-        elif data.startswith("bet_missed_"):
-            event_id = data.replace("bet_missed_", "")
-            log.info("user_interaction", action="bet_missed", event_id=event_id)
-            
-            await self._record_interaction(event_id, "MISSED")
-            
-            await query.edit_message_reply_markup(reply_markup=None)
-            await query.edit_message_text(text=f"{query.message.text}\n\n❌ <b>رد شد:</b> مارکت بسته بود یا فرصت از دست رفت.", parse_mode="HTML")
+    این کلاس موازی با telegram_notifier کار میکند.
+    notifier سیگنال ارسال میکند، listener بازخورد دریافت میکند.
 
-    async def _record_interaction(self, event_id: str, status: str):
-        # در دیتابیس Redis رکورد می‌کنیم که کاربر چه واکنشی نشان داد
-        key = f"interaction:{event_id}"
-        await self.redis.set(key, status, ex=86400 * 30) # نگه داشتن برای یک ماه
-        
-        # ذخیره در دیتابیس SQL
-        try:
-            async with async_session() as db:
-                stmt = select(ArbitrageOpportunity).where(ArbitrageOpportunity.event_id == event_id)
-                result = await db.execute(stmt)
-                opp = result.scalar_one_or_none()
-                if opp:
-                    opp.user_status = status
-                    await db.commit()
-                    log.info("db_interaction_saved", event_id=event_id, status=status)
-        except Exception as e:
-            log.error("db_interaction_error", error=str(e))
-        
-    async def start_polling(self):
-        """اجرای سرور پولینگ تلگرام"""
-        if not settings.TELEGRAM_BOT_TOKEN:
-            log.error("telegram_token_missing")
+    فرمت callback_data دکمهها:
+    "win:{telegram_message_id}"
+    "loss:{telegram_message_id}"
+    "void:{telegram_message_id}"
+    "skip:{telegram_message_id}"
+    """
+
+    def __init__(self):
+        self.app = (
+            Application.builder()
+            .token(settings.TELEGRAM_BOT_TOKEN)
+            .build()
+        )
+        self._register_handlers()
+
+    def _register_handlers(self):
+        self.app.add_handler(CallbackQueryHandler(self._handle_button))
+        self.app.add_handler(CommandHandler("stats", self._handle_stats))
+        self.app.add_handler(CommandHandler("health", self._handle_health))
+
+    async def _handle_button(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        هنگامی که کاربر روی یکی از دکمههای Win/Loss/Void/Skip کلیک میکند.
+        """
+        query = update.callback_query
+        await query.answer()   # loading را برمیدارد
+
+        data = query.data      # مثال: "win:12345"
+        parts = data.split(":")
+        if len(parts) != 2:
             return
-            
-        application = Application.builder().token(settings.TELEGRAM_BOT_TOKEN).build()
-        application.add_handler(CallbackQueryHandler(self.button_callback))
-        
+
+        action, msg_id_str = parts
+        try:
+            msg_id = int(msg_id_str)
+        except ValueError:
+            return
+
+        status_map = {
+            "win":  SignalStatus.WIN,
+            "loss": SignalStatus.LOSS,
+            "void": SignalStatus.VOID,
+            "skip": SignalStatus.SKIPPED,
+        }
+
+        status = status_map.get(action)
+        if status is None:
+            return
+
+        success = await update_signal_status(msg_id, status)
+
+        if success:
+            emoji_map = {
+                SignalStatus.WIN:     "✅ Win ثبت شد",
+                SignalStatus.LOSS:    "❌ Loss ثبت شد",
+                SignalStatus.VOID:    "⚠️ Void ثبت شد",
+                SignalStatus.SKIPPED: "⏭ رد شد",
+            }
+            # ویرایش پیام اصلی تلگرام برای نشان دادن نتیجه
+            try:
+                original_text = query.message.text or ""
+                await query.edit_message_text(
+                    text=f"{original_text}\n\n─────\n{emoji_map[status]}",
+                    reply_markup=None   # دکمهها را حذف کن
+                )
+            except Exception:
+                pass   # اگر پیام خیلی قدیمی بود مشکلی نیست
+
+            log.info("button_pressed", action=action, msg_id=msg_id)
+
+    async def _handle_stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """دستور /stats — آمار کلی"""
+        from database.db_session import get_stats_for_ml
+        signals = await get_stats_for_ml()
+
+        wins   = sum(1 for s in signals if s['status'] == 'win')
+        losses = sum(1 for s in signals if s['status'] == 'loss')
+        voids  = sum(1 for s in signals if s['status'] == 'void')
+        total  = wins + losses + voids
+
+        win_rate = (wins / total * 100) if total > 0 else 0
+        avg_profit = sum(s['profit_pct'] for s in signals) / len(signals) if signals else 0
+
+        clv_values = [s['clv_value'] for s in signals if s.get('clv_value') is not None]
+        avg_clv = sum(clv_values) / len(clv_values) if clv_values else 0
+
+        text = (
+            f"📊 *آمار کلی ربات*\n\n"
+            f"✅ Win: {wins}\n"
+            f"❌ Loss: {losses}\n"
+            f"⚠️ Void: {voids}\n"
+            f"📈 Win Rate: {win_rate:.1f}%\n"
+            f"💰 میانگین سود: {avg_profit:.2f}%\n"
+            f"📐 میانگین CLV: {avg_clv:.2f}%"
+        )
+        await update.message.reply_text(text, parse_mode="Markdown")
+
+    async def _handle_health(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """دستور /health — سلامت اکانتها"""
+        from protection.account_health import AccountHealthMonitor
+        import redis.asyncio as aioredis
+        redis_client = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+        monitor = AccountHealthMonitor(redis_client)
+        scores = await monitor.get_all_scores()
+        await redis_client.aclose()
+
+        lines = ["🏥 *سلامت اکانتها*\n"]
+        for book, info in sorted(scores.items(), key=lambda x: x[1]['score'], reverse=True):
+            bar = "█" * (info['score'] // 10) + "░" * (10 - info['score'] // 10)
+            lines.append(f"`{book:<15}` {bar} {info['score']}")
+
+        await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+
+    async def start(self):
+        """شروع polling — این را با asyncio.gather اجرا کن"""
+        await self.app.initialize()
+        await self.app.start()
+        await self.app.updater.start_polling(drop_pending_updates=True)
         log.info("telegram_listener_started")
-        # Initialize and start the application manually so it doesn't block the main event loop
-        await application.initialize()
-        await application.start()
-        await application.updater.start_polling()
+
+    async def stop(self):
+        await self.app.updater.stop()
+        await self.app.stop()
+        await self.app.shutdown()

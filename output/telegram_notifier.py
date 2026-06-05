@@ -8,50 +8,85 @@ class TelegramNotifier:
     def __init__(self, bot_token: str, chat_id: str):
         self.bot = Bot(token=bot_token)
         self.chat_id = chat_id
-        
-    async def send_arbitrage_alert(self, opportunity: dict):
+
+    async def send_arbitrage_alert(self, opportunity: dict) -> int:
         """
-        ارسال پیام به تلگرام به همراه دکمه‌های تعاملی برای ثبت نتیجه.
+        سیگنال را با دکمههای Win/Loss ارسال کن.
+        مقدار برگشتی: message_id تلگرام (برای ذخیره در دیتابیس)
         """
         if not self.bot.token or not self.chat_id:
             log.warning("telegram_not_configured")
-            return
-            
-        try:
-            urgency = opportunity.get('urgency', {})
-            emoji = urgency.get('emoji', '📊')
-            label = urgency.get('label', 'NORMAL')
-            
-            quality = opportunity.get('quality', {})
-            q_emoji = quality.get('emoji', '🟢')
-            q_label = quality.get('quality', 'HIGH')
-            
-            msg = f"{emoji} <b>Arbitrage Found!</b> [{label}]\n"
-            msg += f"🏆 <b>Match:</b> {opportunity['event_name']}\n"
-            msg += f"💰 <b>Profit:</b> {opportunity['profit_pct']:.2f}%\n"
-            msg += f"🛡️ <b>Quality:</b> {q_emoji} {q_label}\n"
-            msg += f"💶 <b>Total Stake:</b> €{opportunity.get('total_stake', 0)}\n\n"
-            
-            for leg in opportunity['legs']:
-                msg += f"🔹 <b>{leg['bookmaker']}</b> ({leg['market']}): {leg['outcome']} @ {leg['odd']} ➡️ Stake: €{leg.get('stake', 0)}\n"
-            
-            # شناسه یکتا برای این سیگنال ایجاد می‌کنیم تا در دیتابیس قابل رهگیری باشد
-            event_id = opportunity.get('event_id', uuid.uuid4().hex[:8])
-            
-            # ایجاد دکمه‌های شیشه‌ای
-            keyboard = [
-                [
-                    InlineKeyboardButton("✅ شرط بسته شد", callback_data=f"bet_placed_{event_id}"),
-                    InlineKeyboardButton("❌ مارکت بسته بود", callback_data=f"bet_missed_{event_id}")
-                ]
+            return 0
+
+        text = self._format_signal_text(opportunity)
+
+        # دکمههای inline — callback_data بعداً توسط listener خوانده میشود
+        # message_id هنوز نداریم؛ بعد از ارسال اضافه میکنیم
+        placeholder = "PENDING"
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("✅ Win",  callback_data=f"win:{placeholder}"),
+                InlineKeyboardButton("❌ Loss", callback_data=f"loss:{placeholder}"),
+            ],
+            [
+                InlineKeyboardButton("⚠️ Void", callback_data=f"void:{placeholder}"),
+                InlineKeyboardButton("⏭ Skip",  callback_data=f"skip:{placeholder}"),
             ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-                
-            await self.bot.send_message(
+        ])
+
+        try:
+            msg = await self.bot.send_message(
                 chat_id=self.chat_id,
-                text=msg,
-                parse_mode="HTML",
-                reply_markup=reply_markup
+                text=text,
+                reply_markup=keyboard,
+                parse_mode="Markdown"
             )
+
+            # حالا که message_id را داریم، دکمهها را آپدیت کن
+            real_keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("✅ Win",  callback_data=f"win:{msg.message_id}"),
+                    InlineKeyboardButton("❌ Loss", callback_data=f"loss:{msg.message_id}"),
+                ],
+                [
+                    InlineKeyboardButton("⚠️ Void", callback_data=f"void:{msg.message_id}"),
+                    InlineKeyboardButton("⏭ Skip",  callback_data=f"skip:{msg.message_id}"),
+                ]
+            ])
+            await self.bot.edit_message_reply_markup(
+                chat_id=self.chat_id,
+                message_id=msg.message_id,
+                reply_markup=real_keyboard
+            )
+
+            return msg.message_id   # این را به save_signal بده
         except Exception as e:
-            log.error("telegram_send_error", error=str(e))
+            log.error("telegram_alert_failed", error=str(e))
+            return 0
+
+    def _format_signal_text(self, opportunity: dict) -> str:
+        """فرمت پیام تلگرام"""
+        quality = opportunity.get('quality', {})
+        urgency = opportunity.get('urgency', {})
+        legs = opportunity.get('legs', [])
+
+        lines = [
+            f"{urgency.get('emoji','📊')} *{urgency.get('label','SIGNAL')}*",
+            f"",
+            f"🎯 *{opportunity.get('event_name', '')}*",
+            f"💰 سود تضمینی: `{opportunity.get('profit_pct', 0.0):.2f}%`",
+            f"🏆 کیفیت: {quality.get('emoji','')} {quality.get('quality','')}",
+            f"",
+        ]
+
+        for i, leg in enumerate(legs, 1):
+            lines.append(
+                f"شرط {i}: *{leg.get('bookmaker','')}* → "
+                f"`{leg.get('verified_odd', leg.get('odd',0)):.2f}` "
+                f"({leg.get('stake',0):.0f}€)"
+            )
+
+        if urgency.get('note'):
+            lines.append(f"\n⚡ {urgency['note']}")
+
+        return "\n".join(lines)
