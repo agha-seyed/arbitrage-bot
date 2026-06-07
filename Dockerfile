@@ -1,15 +1,11 @@
-FROM python:3.11-slim
-
-ENV DEBIAN_FRONTEND=noninteractive
+# استفاده از ایمیج رسمی Playwright که تمام پیش‌نیازها و مرورگرها از قبل روی آن نصب است
+FROM mcr.microsoft.com/playwright/python:v1.42.0-jammy
 
 WORKDIR /app
 
 # کپی فایل نیازمندی‌ها و نصب آن‌ها
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-
-# نصب مرورگر برای Playwright به همراه تمامی پیش‌نیازهای لینوکسی آن
-RUN playwright install --with-deps chromium
 
 # کپی تمام فایل‌های پروژه
 COPY . .
