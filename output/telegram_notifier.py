@@ -9,9 +9,20 @@ class TelegramNotifier:
         self.bot = Bot(token=bot_token)
         self.chat_id = chat_id
 
-    async def send_arbitrage_alert(self, opportunity: dict) -> int:
+    async def send_message(self, text: str) -> bool:
+        if not self.bot.token or not self.chat_id:
+            return False
+        try:
+            await self.bot.send_message(chat_id=self.chat_id, text=text, parse_mode="Markdown")
+            return True
+        except Exception as e:
+            log.error("telegram_send_msg_failed", error=str(e))
+            return False
+
+    async def send_arbitrage_alert(self, opportunity: dict, active_users: dict = None) -> int:
         """
         سیگنال را با دکمههای Win/Loss ارسال کن.
+        ابتدا به ادمین می‌فرستد تا message_id بگیرد، سپس برای بقیه برودکست می‌کند.
         مقدار برگشتی: message_id تلگرام (برای ذخیره در دیتابیس)
         """
         if not self.bot.token or not self.chat_id:
@@ -20,8 +31,6 @@ class TelegramNotifier:
 
         text = self._format_signal_text(opportunity)
 
-        # دکمههای inline — callback_data بعداً توسط listener خوانده میشود
-        # message_id هنوز نداریم؛ بعد از ارسال اضافه میکنیم
         placeholder = "PENDING"
         keyboard = InlineKeyboardMarkup([
             [
@@ -42,7 +51,6 @@ class TelegramNotifier:
                 parse_mode="Markdown"
             )
 
-            # حالا که message_id را داریم، دکمهها را آپدیت کن
             real_keyboard = InlineKeyboardMarkup([
                 [
                     InlineKeyboardButton("✅ Win",  callback_data=f"win:{msg.message_id}"),
@@ -58,8 +66,23 @@ class TelegramNotifier:
                 message_id=msg.message_id,
                 reply_markup=real_keyboard
             )
+            
+            # برودکست برای بقیه کاربران فعال
+            if active_users:
+                for uid in active_users.keys():
+                    if str(uid) == str(self.chat_id):
+                        continue
+                    try:
+                        await self.bot.send_message(
+                            chat_id=uid,
+                            text=text,
+                            reply_markup=real_keyboard,
+                            parse_mode="Markdown"
+                        )
+                    except Exception as e:
+                        log.error("telegram_broadcast_alert_failed", chat_id=uid, error=str(e))
 
-            return msg.message_id   # این را به save_signal بده
+            return msg.message_id
         except Exception as e:
             log.error("telegram_alert_failed", error=str(e))
             return 0

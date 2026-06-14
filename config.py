@@ -2,9 +2,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List
 
 class Settings(BaseSettings):
-    # API Keys
-    ODDS_API_KEY: str = ""
-    ODDS_API_FALLBACK_KEY: str = ""
+    # API Keys (comma separated for rotation)
+    ODDS_API_KEYS: str = ""
     
     # Telegram
     TELEGRAM_BOT_TOKEN: str = ""
@@ -41,6 +40,13 @@ class Settings(BaseSettings):
 
     # Playwright Auto-Betting
     ENABLE_AUTO_BETTING: bool = False
+
+    # Email Settings
+    SMTP_SERVER: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASS: str = ""
+    ADMIN_EMAIL: str = "agha.seyed.ehsan@gmail.com"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

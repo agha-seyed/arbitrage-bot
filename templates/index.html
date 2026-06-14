@@ -3,127 +3,230 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GOD MODE - Arbitrage Dashboard</title>
+    <title>GOD MODE - Premium Dashboard</title>
+    
+    <!-- Telegram Web App -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     
     <style>
+        :root {
+            --neon-blue: #00f3ff;
+            --neon-purple: #bc13fe;
+            --neon-green: #00ff66;
+            --dark-bg: #050505;
+        }
+
         body {
-            font-family: 'Inter', sans-serif;
-            background-color: #0f172a; /* Slate 900 */
-            color: #f8fafc; /* Slate 50 */
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--dark-bg);
+            color: #f8fafc;
+            overflow-x: hidden;
+            /* Animated background gradient */
+            background: radial-gradient(circle at 15% 50%, rgba(0, 243, 255, 0.08), transparent 25%),
+                        radial-gradient(circle at 85% 30%, rgba(188, 19, 254, 0.08), transparent 25%);
+            background-size: cover;
+            background-attachment: fixed;
         }
+
+        /* Glassmorphism Classes */
         .glass-panel {
-            background: rgba(30, 41, 59, 0.7); /* Slate 800 with opacity */
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 1rem;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            background: rgba(20, 20, 25, 0.65);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
+
+        .glass-panel:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 40px 0 rgba(0, 243, 255, 0.1);
+            border: 1px solid rgba(0, 243, 255, 0.2);
+        }
+
         .text-gradient {
-            background: linear-gradient(to right, #38bdf8, #818cf8);
+            background: linear-gradient(135deg, var(--neon-blue), var(--neon-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 20px rgba(0, 243, 255, 0.3);
+        }
+
+        /* Micro animations */
+        .pulse-dot {
+            box-shadow: 0 0 10px var(--neon-green), 0 0 20px var(--neon-green);
+            animation: pulse-glow 2s infinite;
+        }
+
+        @keyframes pulse-glow {
+            0% { box-shadow: 0 0 5px var(--neon-green); opacity: 0.8; }
+            50% { box-shadow: 0 0 20px var(--neon-green), 0 0 30px var(--neon-green); opacity: 1; }
+            100% { box-shadow: 0 0 5px var(--neon-green); opacity: 0.8; }
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2); 
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1); 
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 243, 255, 0.5); 
+        }
+
+        /* Toast Notifications */
+        .notification-toast {
+            animation: slideIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(120%) scale(0.9); opacity: 0; }
+            to { transform: translateX(0) scale(1); opacity: 1; }
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(180deg, #ffffff, #a0a0a0);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
-        .notification-toast {
-            animation: slideIn 0.5s ease-out forwards;
-        }
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
     </style>
 </head>
-<body class="min-h-screen p-6 relative overflow-x-hidden">
+<body class="min-h-screen p-4 md:p-8">
     
     <!-- Header -->
-    <header class="flex justify-between items-center mb-10">
+    <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
-            <h1 class="text-4xl font-bold tracking-tight text-gradient">Arbitrage Bot</h1>
-            <p class="text-slate-400 mt-1">GOD MODE v9.0 Enterprise</p>
+            <h1 class="text-4xl md:text-5xl font-bold tracking-tight text-gradient mb-1">Arbitrage Bot</h1>
+            <p class="text-slate-400 font-light tracking-widest text-sm uppercase">GOD MODE v9.0 Enterprise</p>
         </div>
-        <div class="flex items-center space-x-4">
-            <div class="glass-panel px-4 py-2 flex items-center space-x-2">
-                <div class="w-3 h-3 rounded-full bg-emerald-400 animate-pulse"></div>
-                <span class="text-sm font-semibold">System Online</span>
-            </div>
+        <div class="glass-panel px-5 py-3 flex items-center space-x-3 rounded-full border-b border-r border-slate-700/50">
+            <div class="w-3 h-3 rounded-full bg-emerald-400 pulse-dot"></div>
+            <span class="text-sm font-semibold tracking-wider text-slate-200">System Online</span>
         </div>
     </header>
 
     <!-- Main Grid -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 md:gap-8">
         
         <!-- Left Column: Stats & Health -->
-        <div class="space-y-6">
+        <div class="space-y-6 md:space-y-8">
+            
             <!-- Global Stats -->
-            <div class="glass-panel p-6">
-                <h2 class="text-xl font-semibold mb-4 text-slate-200">System Analytics</h2>
+            <div class="glass-panel p-6 relative overflow-hidden group">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl group-hover:bg-blue-400/20 transition-all duration-500"></div>
+                
+                <h2 class="text-lg font-semibold mb-6 text-slate-300 uppercase tracking-widest flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                    System Analytics
+                </h2>
+                
                 <div class="grid grid-cols-2 gap-4">
-                    <div class="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
-                        <p class="text-sm text-slate-400">30d Avg CLV</p>
+                    <div class="bg-black/30 p-4 rounded-xl border border-white/5 hover:border-blue-500/30 transition-colors">
+                        <p class="text-xs text-slate-400 uppercase tracking-wider mb-1">30d Avg CLV</p>
                         <p class="text-3xl font-bold text-emerald-400" id="clv-stat">--%</p>
                     </div>
-                    <div class="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
-                        <p class="text-sm text-slate-400">Healthy Accs</p>
+                    <div class="bg-black/30 p-4 rounded-xl border border-white/5 hover:border-emerald-500/30 transition-colors">
+                        <p class="text-xs text-slate-400 uppercase tracking-wider mb-1">Healthy Accs</p>
                         <p class="text-3xl font-bold text-blue-400" id="healthy-accs">--</p>
                     </div>
-                    <div class="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
-                        <p class="text-sm text-slate-400">Warning Accs</p>
+                    <div class="bg-black/30 p-4 rounded-xl border border-white/5 hover:border-amber-500/30 transition-colors">
+                        <p class="text-xs text-slate-400 uppercase tracking-wider mb-1">Warning Accs</p>
                         <p class="text-3xl font-bold text-amber-400" id="warning-accs">--</p>
                     </div>
-                    <div class="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
-                        <p class="text-sm text-slate-400">Critical Accs</p>
+                    <div class="bg-black/30 p-4 rounded-xl border border-white/5 hover:border-rose-500/30 transition-colors">
+                        <p class="text-xs text-slate-400 uppercase tracking-wider mb-1">Critical Accs</p>
                         <p class="text-3xl font-bold text-rose-400" id="critical-accs">--</p>
                     </div>
                 </div>
             </div>
 
             <!-- Bookmaker Health List -->
-            <div class="glass-panel p-6">
-                <h2 class="text-xl font-semibold mb-4 text-slate-200">Live Account Health</h2>
-                <div id="health-list" class="space-y-3 max-h-80 overflow-y-auto pr-2">
-                    <!-- Dynamic content injected here -->
-                    <div class="text-slate-400 text-sm text-center py-4">Waiting for WebSocket data...</div>
+            <div class="glass-panel p-6 flex flex-col h-[400px]">
+                <h2 class="text-lg font-semibold mb-4 text-slate-300 uppercase tracking-widest flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                    Live Account Health
+                </h2>
+                <div id="health-list" class="space-y-3 overflow-y-auto pr-2 flex-1">
+                    <div class="flex items-center justify-center h-full text-slate-500">
+                        <div class="animate-pulse flex flex-col items-center">
+                            <svg class="w-8 h-8 mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                            Waiting for Data Stream...
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
         <!-- Right Column: Chart & Logs -->
-        <div class="lg:col-span-2 space-y-6">
+        <div class="xl:col-span-2 space-y-6 md:space-y-8 flex flex-col">
+            
             <!-- Chart Panel -->
-            <div class="glass-panel p-6 h-80">
-                <h2 class="text-xl font-semibold mb-4 text-slate-200">CLV Trend (Simulated)</h2>
-                <div class="relative h-64 w-full">
+            <div class="glass-panel p-6 flex flex-col h-[350px] relative group">
+                <div class="absolute top-0 right-0 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl group-hover:bg-purple-400/20 transition-all duration-500 pointer-events-none"></div>
+                <h2 class="text-lg font-semibold mb-4 text-slate-300 uppercase tracking-widest flex items-center z-10">
+                    <svg class="w-5 h-5 mr-2 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path></svg>
+                    CLV Trend Analysis
+                </h2>
+                <div class="relative flex-1 w-full z-10">
                     <canvas id="clvChart"></canvas>
                 </div>
             </div>
             
             <!-- Live Event Log -->
-            <div class="glass-panel p-6">
+            <div class="glass-panel p-6 flex flex-col flex-1 h-[350px]">
                 <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-xl font-semibold text-slate-200">Live Activity Log</h2>
-                    <span class="text-xs px-2 py-1 bg-blue-500/20 text-blue-400 rounded border border-blue-500/30">WebSocket Connected</span>
+                    <h2 class="text-lg font-semibold text-slate-300 uppercase tracking-widest flex items-center">
+                        <svg class="w-5 h-5 mr-2 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        Activity Terminal
+                    </h2>
+                    <span class="text-xs px-3 py-1 bg-blue-500/10 text-blue-400 rounded-full border border-blue-500/20 flex items-center shadow-[0_0_10px_rgba(59,130,246,0.2)]">
+                        <span class="w-1.5 h-1.5 rounded-full bg-blue-400 mr-2 animate-ping"></span> Live
+                    </span>
                 </div>
-                <div id="activity-log" class="bg-slate-900 rounded-lg p-4 font-mono text-sm h-64 overflow-y-auto border border-slate-700 space-y-2">
-                    <div class="text-emerald-400">[SYSTEM] Initialization complete. Listening for arbs...</div>
+                <div id="activity-log" class="bg-[#0a0a0c] rounded-xl p-4 font-mono text-[13px] overflow-y-auto border border-white/5 space-y-2 flex-1 shadow-inner">
+                    <div class="text-emerald-400/80 hover:text-emerald-400 transition-colors flex items-start">
+                        <span class="text-slate-600 mr-2 select-none">▶</span> 
+                        <span>[SYSTEM] Initialization complete. AI Engine engaged.</span>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Toast Notifications Container -->
-    <div id="toast-container" class="fixed bottom-6 right-6 flex flex-col space-y-3 z-50"></div>
+    <div id="toast-container" class="fixed bottom-6 right-6 md:bottom-8 md:right-8 flex flex-col space-y-3 z-50 max-w-sm w-full pointer-events-none"></div>
 
     <script>
-        // Initialize Chart.js
+        // Telegram Web App Initialization
+        if (window.Telegram && window.Telegram.WebApp) {
+            window.Telegram.WebApp.ready();
+            window.Telegram.WebApp.expand();
+            // Optional: match header color
+            window.Telegram.WebApp.setHeaderColor('#050505');
+        }
+
+        // Initialize Chart.js with Premium Styling
+        Chart.defaults.font.family = "'Outfit', sans-serif";
+        Chart.defaults.color = '#64748b';
+        
         const ctx = document.getElementById('clvChart').getContext('2d');
         const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-        gradient.addColorStop(0, 'rgba(56, 189, 248, 0.5)'); // Tailwind Sky 400
-        gradient.addColorStop(1, 'rgba(56, 189, 248, 0.0)');
+        gradient.addColorStop(0, 'rgba(0, 243, 255, 0.4)');
+        gradient.addColorStop(1, 'rgba(188, 19, 254, 0.0)');
         
         const clvChart = new Chart(ctx, {
             type: 'line',
@@ -132,33 +235,53 @@
                 datasets: [{
                     label: 'Closing Line Value (CLV)',
                     data: [1.2, 1.5, 1.4, 2.1, 1.9, 2.5, 2.8],
-                    borderColor: '#38bdf8',
+                    borderColor: '#00f3ff',
                     backgroundColor: gradient,
-                    borderWidth: 2,
+                    borderWidth: 3,
                     fill: true,
-                    tension: 0.4,
-                    pointBackgroundColor: '#0f172a',
-                    pointBorderColor: '#38bdf8',
+                    tension: 0.4, // smooth curves
+                    pointBackgroundColor: '#050505',
+                    pointBorderColor: '#00f3ff',
                     pointBorderWidth: 2,
-                    pointRadius: 4
+                    pointRadius: 4,
+                    pointHoverRadius: 6,
+                    pointHoverBackgroundColor: '#00f3ff',
+                    pointHoverBorderColor: '#fff'
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { display: false }
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: 'rgba(20, 20, 25, 0.9)',
+                        titleColor: '#fff',
+                        bodyColor: '#00f3ff',
+                        borderColor: 'rgba(0, 243, 255, 0.3)',
+                        borderWidth: 1,
+                        padding: 12,
+                        displayColors: false,
+                        cornerRadius: 8
+                    }
                 },
                 scales: {
                     y: {
-                        grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                        ticks: { color: '#94a3b8' }
+                        grid: { 
+                            color: 'rgba(255, 255, 255, 0.03)',
+                            drawBorder: false
+                        },
+                        ticks: { padding: 10 }
                     },
                     x: {
-                        grid: { display: false },
-                        ticks: { color: '#94a3b8' }
+                        grid: { display: false, drawBorder: false },
+                        ticks: { padding: 10 }
                     }
-                }
+                },
+                interaction: {
+                    intersect: false,
+                    mode: 'index',
+                },
             }
         });
 
@@ -177,122 +300,161 @@
         }
         
         fetchStats();
-        // Refresh stats every 60s
         setInterval(fetchStats, 60000);
 
-        // Toast Notification System
+        // Advanced Toast Notification System
         function showToast(message, type = 'info') {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
             
-            let colorClass = 'border-blue-500 bg-blue-500/10 text-blue-400';
-            let icon = 'ℹ️';
+            let config = {
+                color: 'blue',
+                icon: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>',
+                border: 'border-blue-500/50',
+                bg: 'bg-blue-500/10'
+            };
             
             if (type === 'success') {
-                colorClass = 'border-emerald-500 bg-emerald-500/10 text-emerald-400';
-                icon = '✅';
+                config = { color: 'emerald', icon: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>', border: 'border-emerald-500/50', bg: 'bg-emerald-500/10' };
             } else if (type === 'warning') {
-                colorClass = 'border-amber-500 bg-amber-500/10 text-amber-400';
-                icon = '⚠️';
-            } else if (type === 'danger') {
-                colorClass = 'border-rose-500 bg-rose-500/10 text-rose-400';
-                icon = '🚨';
+                config = { color: 'amber', icon: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>', border: 'border-amber-500/50', bg: 'bg-amber-500/10' };
+            } else if (type === 'danger' || type === 'error') {
+                config = { color: 'rose', icon: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>', border: 'border-rose-500/50', bg: 'bg-rose-500/10' };
             }
 
-            toast.className = `notification-toast flex items-center p-4 rounded-lg border shadow-lg backdrop-blur-md ${colorClass}`;
-            toast.innerHTML = `<span class="mr-3">${icon}</span> <p class="text-sm font-medium">${message}</p>`;
+            toast.className = `notification-toast flex items-start p-4 rounded-xl border ${config.border} ${config.bg} backdrop-blur-xl shadow-2xl pointer-events-auto`;
+            toast.innerHTML = `
+                <div class="flex-shrink-0 text-${config.color}-400 mr-3 mt-0.5">${config.icon}</div>
+                <div class="flex-1">
+                    <p class="text-sm font-medium text-slate-200">${message}</p>
+                </div>
+                <button onclick="this.parentElement.remove()" class="text-slate-400 hover:text-white transition-colors ml-4">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            `;
             
             container.appendChild(toast);
             
-            // Remove after 5 seconds
             setTimeout(() => {
-                toast.style.opacity = '0';
-                toast.style.transform = 'translateX(100%)';
-                toast.style.transition = 'all 0.5s ease';
-                setTimeout(() => toast.remove(), 500);
-            }, 5000);
+                if(toast.parentElement) {
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateY(10px)';
+                    toast.style.transition = 'all 0.3s ease';
+                    setTimeout(() => toast.remove(), 300);
+                }
+            }, 6000);
         }
 
-        // Add log entry
+        // Terminal Log Entry
         function addLogEntry(message, level = 'info') {
             const logBox = document.getElementById('activity-log');
             const entry = document.createElement('div');
-            const time = new Date().toLocaleTimeString();
+            const time = new Date().toLocaleTimeString('en-US', { hour12: false });
             
-            let color = 'text-slate-300';
+            let color = 'text-slate-400';
             if(level === 'success') color = 'text-emerald-400';
             if(level === 'warning') color = 'text-amber-400';
             if(level === 'error') color = 'text-rose-400';
             
-            entry.innerHTML = `<span class="text-slate-500">[${time}]</span> <span class="${color}">${message}</span>`;
+            entry.className = "flex items-start hover:bg-white/5 p-1 rounded transition-colors group";
+            entry.innerHTML = `
+                <span class="text-slate-600 mr-3 select-none w-20 flex-shrink-0">[${time}]</span> 
+                <span class="${color} flex-1 group-hover:brightness-125 transition-all">${message}</span>
+            `;
             logBox.appendChild(entry);
+            
+            // Auto scroll to bottom
             logBox.scrollTop = logBox.scrollHeight;
+            
+            // Keep only last 50 logs to prevent memory issues
+            if(logBox.children.length > 50) {
+                logBox.removeChild(logBox.firstChild);
+            }
         }
 
         // WebSocket Connection
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+        let ws;
         
-        ws.onopen = () => {
-            showToast("Connected to Data Stream", "success");
-        };
-
-        ws.onmessage = (event) => {
-            const data = JSON.parse(event.data);
+        function connectWebSocket() {
+            ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
             
-            if (data.health_scores) {
-                const list = document.getElementById('health-list');
-                list.innerHTML = '';
-                
-                Object.entries(data.health_scores).forEach(([bm, info]) => {
-                    let barColor = 'bg-emerald-500';
-                    let badgeColor = 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
-                    
-                    if (info.score < 50) {
-                        barColor = 'bg-rose-500';
-                        badgeColor = 'bg-rose-500/20 text-rose-400 border-rose-500/30';
-                        // Add log if critical
-                        addLogEntry(`Health critical for ${bm}: ${info.score}`, 'error');
-                    } else if (info.score < 80) {
-                        barColor = 'bg-amber-500';
-                        badgeColor = 'bg-amber-500/20 text-amber-400 border-amber-500/30';
-                    }
+            ws.onopen = () => {
+                showToast("Neural Link Established", "success");
+                addLogEntry("WebSocket connected successfully.", "success");
+            };
 
-                    const item = document.createElement('div');
-                    item.className = 'flex items-center justify-between p-3 rounded bg-slate-800/50 border border-slate-700';
-                    item.innerHTML = `
-                        <div class="flex-1">
-                            <div class="flex justify-between items-center mb-1">
-                                <span class="font-medium text-slate-300 capitalize">${bm}</span>
-                                <span class="text-xs px-2 py-0.5 rounded border ${badgeColor}">${info.score}/100</span>
-                            </div>
-                            <div class="w-full bg-slate-900 rounded-full h-1.5">
-                                <div class="${barColor} h-1.5 rounded-full" style="width: ${info.score}%"></div>
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                
+                if (data.health_scores) {
+                    updateHealthList(data.health_scores);
+                }
+                
+                if (data.type === 'alert') {
+                    showToast(data.message, data.level);
+                    addLogEntry(`[ALERT] ${data.message}`, data.level);
+                }
+            };
+
+            ws.onclose = () => {
+                showToast("Data Stream Disconnected. Reconnecting...", "warning");
+                addLogEntry("Connection lost. Retrying in 5s...", "error");
+                setTimeout(connectWebSocket, 5000);
+            };
+        }
+
+        function updateHealthList(scores) {
+            const list = document.getElementById('health-list');
+            list.innerHTML = '';
+            
+            // Sort by score ascending (worst first)
+            const sortedEntries = Object.entries(scores).sort((a, b) => a[1].score - b[1].score);
+            
+            sortedEntries.forEach(([bm, info]) => {
+                let barColor = 'from-emerald-400 to-emerald-600';
+                let badgeClass = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+                let glowClass = 'group-hover:shadow-[0_0_15px_rgba(16,185,129,0.2)]';
+                
+                if (info.score < 50) {
+                    barColor = 'from-rose-400 to-rose-600';
+                    badgeClass = 'bg-rose-500/10 text-rose-400 border-rose-500/20 shadow-[0_0_10px_rgba(244,63,94,0.2)]';
+                    glowClass = 'group-hover:shadow-[0_0_15px_rgba(244,63,94,0.3)]';
+                } else if (info.score < 80) {
+                    barColor = 'from-amber-400 to-amber-600';
+                    badgeClass = 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+                    glowClass = 'group-hover:shadow-[0_0_15px_rgba(245,158,11,0.2)]';
+                }
+
+                const item = document.createElement('div');
+                item.className = `group flex items-center justify-between p-4 mb-3 rounded-xl bg-black/40 border border-white/5 transition-all duration-300 hover:bg-black/60 ${glowClass}`;
+                item.innerHTML = `
+                    <div class="flex-1">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="font-semibold text-slate-200 capitalize tracking-wide">${bm}</span>
+                            <span class="text-xs px-2.5 py-1 rounded-md border font-bold ${badgeClass}">${info.score}/100</span>
+                        </div>
+                        <div class="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-white/5">
+                            <div class="bg-gradient-to-r ${barColor} h-full rounded-full transition-all duration-1000 ease-out relative" style="width: ${info.score}%">
+                                <div class="absolute inset-0 bg-white/20 animate-[pulse_2s_ease-in-out_infinite]"></div>
                             </div>
                         </div>
-                    `;
-                    list.appendChild(item);
-                });
-            }
-            
-            // Example of generic notification from backend
-            if (data.type === 'alert') {
-                showToast(data.message, data.level);
-                addLogEntry(`[ALERT] ${data.message}`, data.level);
-            }
-        };
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+        }
 
-        ws.onclose = () => {
-            showToast("Disconnected from Data Stream", "danger");
-            addLogEntry("WebSocket connection lost.", "error");
-        };
+        // Initialize connection
+        connectWebSocket();
 
-        // Simulate some random arb finding events for the log
+        // Simulate activity for preview
         setInterval(() => {
             if(Math.random() > 0.7) {
-                addLogEntry("Arbitrage found! H2H Snai vs Pinnacle (Profit: 2.1%)", "success");
+                const profit = (Math.random() * 3 + 1).toFixed(2);
+                addLogEntry(`Arbitrage Detected: 1xBet vs Pinnacle (+${profit}%)`, "success");
             }
-        }, 15000);
+        }, 8000);
     </script>
 </body>
 </html>

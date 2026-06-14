@@ -1,9 +1,10 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
+from telegram.ext import Application, CallbackQueryHandler, CommandHandler, MessageHandler, filters, ContextTypes
 from database.db_session import update_signal_status
 from database.models import SignalStatus
 from config import settings
 import structlog
+import asyncio
 
 log = structlog.get_logger()
 
@@ -20,6 +21,10 @@ class TelegramListener:
     """
 
     def __init__(self):
+        self.is_paused = False
+        self.support_users = set()
+        self.active_users = {}  # chat_id: first_name
+        self.admin_name = "ادمین"
         self.app = (
             Application.builder()
             .token(settings.TELEGRAM_BOT_TOKEN)
@@ -31,15 +36,129 @@ class TelegramListener:
         self.app.add_handler(CallbackQueryHandler(self._handle_button))
         self.app.add_handler(CommandHandler("stats", self._handle_stats))
         self.app.add_handler(CommandHandler("health", self._handle_health))
+        self.app.add_handler(CommandHandler("start", self._handle_start))
+        self.app.add_handler(CommandHandler("stop", self._handle_stop))
+        self.app.add_handler(CommandHandler("about", self._handle_about))
+        self.app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self._handle_text))
+
+    async def _handle_start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        self.is_paused = False
+        first_name = update.message.from_user.first_name
+        chat_id = update.message.chat_id
+        self.active_users[chat_id] = first_name
+        self.admin_name = first_name
+        
+        keyboard = ReplyKeyboardMarkup(
+            [
+                [KeyboardButton("📊 آمار کلی"), KeyboardButton("🏥 سلامت اکانت‌ها")],
+                [KeyboardButton("🌐 داشبورد زنده", web_app=WebAppInfo(url="https://esi-sand.vercel.app/")), KeyboardButton("ℹ️ درباره ما")]
+            ],
+            resize_keyboard=True,
+            persistent=True
+        )
+        
+        await update.message.reply_text(f"▶️ {first_name} عزیز، ربات شکارچی ویرانگران استارت خورد و شروع به کار کرد! 🚀", reply_markup=keyboard)
+
+    async def _handle_stop(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        self.is_paused = True
+        first_name = update.message.from_user.first_name
+        chat_id = update.message.chat_id
+        self.active_users[chat_id] = first_name
+        self.admin_name = first_name
+        await update.message.reply_text(
+            f"⏸ {first_name} عزیز، تو استاپ رو زدی که ربات کار نکنه!\n"
+            "الان از سود و سرمایه جا می‌مونی! 😱\n"
+            "بذار ربات همیشه روشن باشه و کار کنه تا برات بگرده و سود پیدا کنه.\n\n"
+            "برای شروع مجدد کافیه /start رو بزنی."
+        )
+
+    async def _handle_about(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        caption = (
+            "💀🔥 *ربات آربیتراژ هوشمند ویرانگران* 🔥💀\n\n"
+            "این ربات یک ماشین چاپ پولِ هوشمند است که با افتخار توسط *تیم ویرانگران* توسعه داده شده است.\n\n"
+            "❓ *کار این ربات چیست؟*\n"
+            "این ربات به صورت ثانیه‌ای هزاران ضریب را در ده‌ها سایت پیش‌بینی معتبر دنیا مقایسه می‌کند. "
+            "هرجا اختلاف قیمتی پیدا کند که باعث شود شما با پوشش دادن تمام نتایجِ بازی *سود قطعی و بدون ریسک* "
+            "(Arbitrage) ببرید، بلافاصله آن را شکار کرده و برای شما ارسال می‌کند!\n\n"
+            "امکانات ویژه:\n"
+            "✅ شناسایی خودکار اختلاف قیمت‌ها\n"
+            "✅ فیلتر هوشمند برای حذف سیگنال‌های پرخطر\n"
+            "✅ محاسبه دقیق مبلغ ورود برای تضمین سود\n\n"
+            "ما بازار را ویران می‌کنیم تا شما سود کنید! 💸"
+        )
+        
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("👨‍💻 ارتباط با مدیر تیم", callback_data="contact_manager")],
+            [
+                InlineKeyboardButton("🛠 پشتیبانی فنی", callback_data="support"),
+                InlineKeyboardButton("🌐 وب‌سایت ما", url="https://esi-sand.vercel.app/")
+            ]
+        ])
+        
+        photo_path = r"C:\Users\ehsan\.gemini\antigravity-ide\brain\6fa2c9bb-f4c5-49e1-aaac-d6278d576485\virangaran_team_logo_1781204770199.png"
+        
+        try:
+            with open(photo_path, "rb") as photo:
+                await update.message.reply_photo(
+                    photo=photo,
+                    caption=caption,
+                    parse_mode="Markdown",
+                    reply_markup=keyboard
+                )
+        except Exception as e:
+            log.error("send_about_failed", error=str(e))
+            await update.message.reply_text(caption, parse_mode="Markdown", reply_markup=keyboard)
+
+    async def _handle_text(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user_id = update.message.from_user.id
+        user_msg = update.message.text
+        
+        if user_msg == "📊 آمار کلی":
+            await self._handle_stats(update, context)
+            return
+        elif user_msg == "🏥 سلامت اکانت‌ها":
+            await self._handle_health(update, context)
+            return
+        elif user_msg == "ℹ️ درباره ما":
+            await self._handle_about(update, context)
+            return
+            
+        if user_id in self.support_users:
+            self.support_users.remove(user_id)
+            
+            # Send to Telegram Admin
+            try:
+                await context.bot.send_message(
+                    chat_id=settings.TELEGRAM_CHAT_ID,
+                    text=f"🚨 *درخواست پشتیبانی جدید*\nاز طرف کاربر: `{user_id}`\n\nمتن پیام:\n{user_msg}",
+                    parse_mode="Markdown"
+                )
+            except Exception as e:
+                log.error("telegram_support_forward_failed", error=str(e))
+                
+            # Send Email
+            from core.email_sender import send_support_email
+            await send_support_email(user_msg, str(user_id))
+            
+            await update.message.reply_text("✅ درخواست پشتیبانی شما با موفقیت ثبت شد و به صورت همزمان به مدیر و ایمیل پشتیبانی (agha.seyed.ehsan@gmail.com) ارسال گردید.")
 
     async def _handle_button(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """
-        هنگامی که کاربر روی یکی از دکمههای Win/Loss/Void/Skip کلیک میکند.
+        هنگامی که کاربر روی یکی از دکمههای شیشه‌ای کلیک میکند.
         """
         query = update.callback_query
         await query.answer()   # loading را برمیدارد
 
-        data = query.data      # مثال: "win:12345"
+        data = query.data
+        if data == "support":
+            self.support_users.add(query.from_user.id)
+            await query.message.reply_text("لطفاً مشکل یا درخواست فنی خود را در یک پیام کامل تایپ کنید و بفرستید:")
+            return
+            
+        if data == "contact_manager":
+            await query.message.reply_text("برای ارتباط مستقیم با مدیر تیم، لطفاً به ایمیل زیر پیام دهید:\n📧 `agha.seyed.ehsan@gmail.com`", parse_mode="Markdown")
+            return
+
         parts = data.split(":")
         if len(parts) != 2:
             return
@@ -131,8 +250,14 @@ class TelegramListener:
         await self.app.start()
         await self.app.updater.start_polling(drop_pending_updates=True)
         log.info("telegram_listener_started")
+        
+        # Block forever to prevent auto-restart loop
+        self._stop_event = asyncio.Event()
+        await self._stop_event.wait()
 
     async def stop(self):
         await self.app.updater.stop()
         await self.app.stop()
         await self.app.shutdown()
+        if hasattr(self, '_stop_event'):
+            self._stop_event.set()

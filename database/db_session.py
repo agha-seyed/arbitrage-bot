@@ -101,3 +101,41 @@ async def get_stats_for_ml() -> list[dict]:
         )
         signals = result.scalars().all()
         return [s.to_dict() for s in signals]
+
+from sqlalchemy import or_, and_, func
+
+async def get_bookmaker_win_rate(bookmaker: str, days: int = 7) -> float:
+    """محاسبه وین‌ریت واقعی بوکمیکر از دیتابیس در X روز گذشته"""
+    from datetime import timedelta
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(
+                func.count().filter(ArbitrageSignal.status == SignalStatus.WIN),
+                func.count().filter(ArbitrageSignal.status.in_([SignalStatus.WIN, SignalStatus.LOSS]))
+            )
+            .where(
+                or_(ArbitrageSignal.bookmaker_1 == bookmaker, ArbitrageSignal.bookmaker_2 == bookmaker),
+                ArbitrageSignal.resolved_at >= cutoff
+            )
+        )
+        row = result.fetchone()
+        wins = row[0] or 0
+        total = row[1] or 0
+        return wins / total if total > 0 else 0.0
+
+async def get_bookmaker_daily_bets(bookmaker: str) -> int:
+    """محاسبه تعداد شرط‌های ۲۴ ساعت گذشته از دیتابیس"""
+    from datetime import timedelta
+    cutoff = datetime.now(timezone.utc) - timedelta(days=1)
+    
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(func.count(ArbitrageSignal.id))
+            .where(
+                or_(ArbitrageSignal.bookmaker_1 == bookmaker, ArbitrageSignal.bookmaker_2 == bookmaker),
+                ArbitrageSignal.detected_at >= cutoff
+            )
+        )
+        return result.scalar() or 0

@@ -40,3 +40,10 @@ class CLVTracker:
             await self.redis.expire(key, 86400 * 30)
         
         log.info("clv_tracked", event_id=event_id)
+
+    async def get_average_clv(self, days: int = 30) -> float:
+        """
+        محاسبه میانگین CLV برای داشبورد.
+        فعلاً به صورت پیش‌فرض 0 برمی‌گرداند تا زمانی که الگوریتم واقعی پیاده‌سازی شود.
+        """
+        return 0.0

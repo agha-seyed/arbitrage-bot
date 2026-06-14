@@ -32,23 +32,60 @@ log = structlog.get_logger()
 
 # ورزش‌ها و مارکت‌هایی که اسکن می‌شوند
 SCAN_CONFIG = [
-    {"sport_key": "soccer_italy_serie_a",       "markets": ["h2h", "totals"]},
-    {"sport_key": "soccer_uefa_champs_league",   "markets": ["h2h", "totals"]},
-    {"sport_key": "basketball_euroleague",       "markets": ["h2h", "totals"]},
-    {"sport_key": "tennis_atp",                  "markets": ["h2h"]},
+    {"sport_key": "upcoming",                      "markets": ["h2h"]},
+    {"sport_key": "soccer_fifa_world_cup",         "markets": ["h2h", "totals"]},
+    {"sport_key": "soccer_china_superleague",      "markets": ["h2h", "totals"]},
+    {"sport_key": "baseball_mlb",                  "markets": ["h2h", "totals"]},
 ]
+import random
+from output.telegram_listener import TelegramListener
+
+async def status_notifier_loop(notifier: TelegramNotifier, tg_listener: TelegramListener):
+    """هر 60 ثانیه یک پیام وضعیت به کانال می‌فرستد."""
+    messages = [
+        "🔍 {name} عزیز، ربات با قدرت در حال اسکن زنده بازارهای جهانی است...",
+        "⏳ می‌دونم منتظری! من هنوز بیدارم و دارم بازار رو اسکن می‌کنم...",
+        "🕵️‍♂️ باز هم دارم می‌گردم! گوشه به گوشه سایت‌ها رو زیر و رو می‌کنم تا یه آربیتراژ ناب پیدا کنم...",
+        "⚡ شکارچی ویرانگران بیداره و داره ضرایب رو مقایسه می‌کنه...",
+        "👀 {name} عزیز، حواسم به همه‌چیز هست، به محض پیدا کردن سود خبرت می‌کنم!"
+    ]
+    while True:
+        await asyncio.sleep(60)
+        if not tg_listener.is_paused:
+            msg_template = random.choice(messages)
+            
+            # ارسال پیام به ادمین (دیفالت)
+            admin_msg = msg_template.replace("{name}", getattr(tg_listener, 'admin_name', 'ادمین'))
+            await notifier.send_message(admin_msg)
+            
+            # ارسال پیام به سایر کاربرانی که /start زده‌اند
+            for chat_id, name in tg_listener.active_users.items():
+                # اگر کاربر همان ادمین دیفالت بود، دوباره ارسال نشود
+                if str(chat_id) == str(notifier.chat_id):
+                    continue
+                
+                user_msg = msg_template.replace("{name}", name)
+                try:
+                    await notifier.bot.send_message(chat_id=chat_id, text=user_msg)
+                except Exception as e:
+                    log.error("broadcast_error", chat_id=chat_id, error=str(e))
 
 async def scan_loop(pipeline: FilterPipeline, fetcher: OddsFetcher,
                     calculator: ArbCalculator, notifier: TelegramNotifier,
                     steam_detector: SteamDetector, clv_tracker: CLVTracker,
                     ml_collector: MLCollector, stake_calc: StakeCalculator,
-                    vig_remover: VigRemover, exposure_controller: ExposureController):
+                    vig_remover: VigRemover, exposure_controller: ExposureController,
+                    tg_listener: TelegramListener):
     """
     حلقه اصلی اسکن — بی‌وقفه اجرا می‌شود.
     هر SCAN_INTERVAL_SECONDS ثانیه یک دور کامل می‌زند.
     """
     while True:
         try:
+            if tg_listener.is_paused:
+                await asyncio.sleep(5)
+                continue
+
             for config in SCAN_CONFIG:
                 odds_data = await fetcher.get_odds(
                     sport_key=config['sport_key'],
@@ -109,7 +146,7 @@ async def scan_loop(pipeline: FilterPipeline, fetcher: OddsFetcher,
                     
                     # ارسال به تلگرام
                     if approved:
-                        telegram_msg_id = await notifier.send_arbitrage_alert(result)
+                        telegram_msg_id = await notifier.send_arbitrage_alert(result, getattr(tg_listener, 'active_users', None))
                         if telegram_msg_id > 0:
                             await save_signal(result, telegram_msg_id)
                     
@@ -168,15 +205,30 @@ async def main():
         
         dashboard = Dashboard(health_monitor, clv_tracker, redis_client)
         
+        # ارسال پیام شروع به تلگرام
+        await notifier.send_message("🚀 ربات آربیتراژ ویرانگران با موفقیت روشن شد و در حال اسکن بازار است!")
+
         # اجرای هم‌زمان scan loop و داشبورد و لیسنر تلگرام
-        await asyncio.gather(
-            scan_loop(pipeline, fetcher, calculator, notifier,
-                      steam_detector, clv_tracker, ml_collector, stake_calc, vig_remover, exposure),
-            dashboard.start_server(),
-            tg_listener.start(),
+        
+        async def run_with_restart(coro_func, *args, **kwargs):
+            while True:
+                try:
+                    await coro_func(*args, **kwargs)
+                except Exception as e:
+                    log.error("task_crashed_restarting", task=coro_func.__name__, error=str(e), exc_info=True)
+                    await asyncio.sleep(5)
+
+        results = await asyncio.gather(
+            run_with_restart(scan_loop, pipeline, fetcher, calculator, notifier, steam_detector, clv_tracker, ml_collector, stake_calc, vig_remover, exposure, tg_listener),
+            run_with_restart(status_notifier_loop, notifier, tg_listener),
+            run_with_restart(dashboard.start_server),
+            run_with_restart(tg_listener.start),
             return_exceptions=True
         )
-
+        
+        for r in results:
+            if isinstance(r, Exception):
+                log.error("gather_task_crashed_fatally", error=str(r), exc_info=r)
 
 if __name__ == "__main__":
     structlog.configure(wrapper_class=structlog.make_filtering_bound_logger(10))

@@ -85,15 +85,12 @@ class AccountHealthMonitor:
         return max(0, min(100, score))
     
     async def _get_win_rate(self, bookmaker: str, days: int) -> float:
-        key = f"stats:wins:{bookmaker}"
-        wins = int(await self.redis.get(f"{key}:wins") or 0)
-        total = int(await self.redis.get(f"{key}:total") or 1)
-        return wins / total if total > 0 else 0.0
+        from database.db_session import get_bookmaker_win_rate
+        return await get_bookmaker_win_rate(bookmaker, days)
     
     async def _get_daily_bet_count(self, bookmaker: str) -> int:
-        key = f"daily:bets:{bookmaker}:{datetime.now(timezone.utc).strftime('%Y%m%d')}"
-        val = await self.redis.get(key)
-        return int(val) if val else 0
+        from database.db_session import get_bookmaker_daily_bets
+        return await get_bookmaker_daily_bets(bookmaker)
     
     async def _is_stake_reduced(self, bookmaker: str) -> bool:
         return await self.redis.exists(f"stake_reduction:{bookmaker}") > 0
